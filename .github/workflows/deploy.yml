@@ -50,7 +50,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # Full history needed for accurate diff
+          fetch-depth: 2   # Full history needed for accurate diff
 
       - name: Detect changed paths
         id: changes
