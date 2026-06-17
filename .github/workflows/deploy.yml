@@ -24,7 +24,7 @@ permissions:
 # ─── Global env vars ─────────────────────────────────────────────────────────
 env:
   APP_NAME: nodejs-app
-  ACR_NAME: appacr
+  ACR_NAME: depappacr
   RESOURCE_GROUP: nodejs-app-rg
   IDENTITY_NAME: nodejs-uami
   LOCATION: centralindia
