@@ -198,7 +198,7 @@ jobs:
                 acrName="$ACR_NAME"                                   \
                 userAssignedIdentityName="$IDENTITY_NAME"             \
                 containerImage="${{ steps.image.outputs.image }}"     \
-                clientNames="$clientNames"
+                clientNames="$CLIENT_NAMES"
 
 
       - name: Print Infrastructure Outputs
