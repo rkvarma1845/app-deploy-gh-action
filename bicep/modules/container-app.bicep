@@ -56,6 +56,10 @@ resource containerApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
               value: 'production'
             }
             {
+              name: 'appInsightsConnectionString'
+              value: appInsightsConnectionString
+            }
+            {
               name: 'PORT'
               value: '8080'
             }
