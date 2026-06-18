@@ -1,6 +1,10 @@
 #!/bin/bash
 # Usage:
-#   ./setup-oidc.sh --app-id <APP_ID> --gh-org <ORG> --gh-repo <REPO> --env <ENV>
+  # ./scripts/setup-oidc.sh \
+  # --app-id  1e230fe1-1410-4ccb-8898-eb6de2b7286c \
+  # --gh-org  rkvarma1845 \
+  # --gh-repo app-deploy-gh-action \
+  # --env     main
 
 set -euo pipefail
 
