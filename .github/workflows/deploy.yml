@@ -181,8 +181,10 @@ jobs:
               --output         tsv)
             echo "source=existing" >> "$GITHUB_OUTPUT"
           fi
-          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
-          echo "Resolved image: $IMAGE"
+
+          IMAGE_NAME_TAG="${IMAGE##*/}"   # strips everything before last /
+          echo "image=$IMAGE_NAME_TAG" >> "$GITHUB_OUTPUT"
+          echo "Resolved image: $IMAGE_NAME_TAG"
 
       # ── Deploy all Bicep modules, passing the resolved image ──────────────
       - name: Deploy Bicep Infrastructure

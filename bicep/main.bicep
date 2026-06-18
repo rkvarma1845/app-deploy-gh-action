@@ -31,7 +31,6 @@ module acr 'modules/acr.bicep' = {
   name: 'deploy-acr'
   params: {
     acrName: acrName
-    location: location
     uamiPrincipalId: uami.outputs.principalId
   }
 }

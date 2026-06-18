@@ -1,19 +1,11 @@
 // ─── Azure Container Registry Module ──────────────────────────────────────────
 param acrName string
-param location string
+// param location string
 param uamiPrincipalId string
 
 // ─── ACR Resource ─────────────────────────────────────────────────────────────
-resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
+resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
   name: acrName
-  location: location
-  sku: {
-    name: 'Basic'
-  }
-  properties: {
-    adminUserEnabled: false
-    publicNetworkAccess: 'Enabled'
-  }
 }
 
 // ─── Grant UAMI AcrPull role on ACR ───────────────────────────────────────────
