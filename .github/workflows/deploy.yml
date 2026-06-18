@@ -10,7 +10,7 @@ on:
         type: boolean
         default: false
       force_app:
-        description: 'Force app re-deploy even if no app code changes'
+        description: 'Force app build-push even if no app code changes'
         required: false
         type: boolean
         default: false
@@ -88,8 +88,7 @@ jobs:
       image_tag: ${{ steps.tag.outputs.image_tag }}
     if: |
       needs.detect-changes.outputs.app_changed == 'true' ||
-      github.event.inputs.force_app == 'true'            ||
-      github.event_name == 'workflow_dispatch'
+      github.event.inputs.force_app == 'true'
 
     steps:
       - name: Checkout code
