@@ -34,6 +34,7 @@ env:
   RESOURCE_GROUP: nodejs-app-rg
   IDENTITY_NAME: nodejs-uami
   LOCATION: centralindia
+  CLIENT_NAMES: '["client1", "client2", "client3"]'
 
 # ─── Cancel in-flight runs on the same branch ────────────────────────────────
 concurrency:
@@ -48,6 +49,8 @@ jobs:
   detect-changes:
     name: Detect Changes
     runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+
     outputs:
       infra_changed: ${{ steps.changes.outputs.infra }}
       app_changed:   ${{ steps.changes.outputs.app }}
@@ -72,86 +75,21 @@ jobs:
               - 'Dockerfile'
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # JOB 2 – Deploy / update Azure infrastructure (only when Bicep changed)
+  # JOB 2 – Build & push Docker image to ACR
+  #         Runs when app files changed (or forced). Does NOT wait for infra.
+  #         Outputs the image tag for downstream jobs to consume.
   # ═══════════════════════════════════════════════════════════════════════════
-  infrastructure:
-    name: Deploy Infrastructure
+  build-push:
+    name: Build & Push
     runs-on: ubuntu-latest
-    environment: main
+    environment: ${{ github.event.inputs.environment }}
     needs: detect-changes
-    # Run when: Bicep files changed  OR  force flag set  OR  manual dispatch
+    outputs:
+      image_tag: ${{ steps.tag.outputs.image_tag }}
     if: |
-      needs.detect-changes.outputs.infra_changed == 'true' ||
-      github.event.inputs.force_infra == 'true'            ||
+      needs.detect-changes.outputs.app_changed == 'true' ||
+      github.event.inputs.force_app == 'true'            ||
       github.event_name == 'workflow_dispatch'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      # ── OIDC login – no long-lived client secret required ─────────────────
-      - name: Azure Login (OIDC)
-        uses: azure/login@v2
-        with:
-          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      # ── Ensure UAMI exists before Bicep references it as 'existing' ───────
-      - name: Create / Ensure User Assigned Identity
-        id: uami
-        run: |
-          chmod +x scripts/create-uami.sh
-          scripts/create-uami.sh \
-            --resource-group "${{ env.RESOURCE_GROUP }}" \
-            --location       "${{ env.LOCATION }}"       \
-            --identity-name  "${{ env.IDENTITY_NAME }}"
-
-      # ── Deploy all Bicep modules via the orchestrating main.bicep ─────────
-      - name: Deploy Bicep Infrastructure
-        id: bicep
-        run: |
-          RESULT=$(az deployment group create \
-            --debug                           \
-            --verbose                         \
-            --subscription    "${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
-            --resource-group  "${{ env.RESOURCE_GROUP }}"            \
-            --template-file   bicep/main.bicep                       \
-            --parameters                                              \
-                appName="$APP_NAME"                                   \
-                acrName="$ACR_NAME"                                   \
-                userAssignedIdentityName="$IDENTITY_NAME"             \
-            --output json)
-
-          echo "acr_login_server=$(echo "$RESULT" | jq -r '.properties.outputs.acrLoginServer.value')"   >> "$GITHUB_OUTPUT"
-          echo "container_app=$(echo "$RESULT"    | jq -r '.properties.outputs.containerAppName.value')" >> "$GITHUB_OUTPUT"
-          echo "app_url=$(echo "$RESULT"          | jq -r '.properties.outputs.appUrl.value')"           >> "$GITHUB_OUTPUT"
-
-      - name: Print Infrastructure Outputs
-        run: |
-          echo "ACR Login Server : ${{ steps.bicep.outputs.acr_login_server }}"
-          echo "Container App    : ${{ steps.bicep.outputs.container_app }}"
-          echo "App URL          : ${{ steps.bicep.outputs.app_url }}"
-
-  # ═══════════════════════════════════════════════════════════════════════════
-  # JOB 3 – Build & push Docker image, update Container App
-  #         Only runs when app files changed (or forced)
-  # ═══════════════════════════════════════════════════════════════════════════
-  deploy-app:
-    name: Build & Deploy App
-    runs-on: ubuntu-latest
-    environment: main
-    needs: [detect-changes, infrastructure]
-    # 'infrastructure' may be skipped; allow this job to run anyway
-    if: |
-      always() &&
-      (
-        needs.detect-changes.outputs.app_changed == 'true' ||
-        github.event.inputs.force_app == 'true'            ||
-        github.event_name == 'workflow_dispatch'
-      ) &&
-      needs.detect-changes.result == 'success' &&
-      (needs.infrastructure.result == 'success' || needs.infrastructure.result == 'skipped')
 
     steps:
       - name: Checkout code
@@ -188,15 +126,124 @@ jobs:
           docker push "${{ env.ACR_NAME }}.azurecr.io/${{ env.APP_NAME }}:${{ steps.tag.outputs.image_tag }}"
           docker push "${{ env.ACR_NAME }}.azurecr.io/${{ env.APP_NAME }}:latest"
 
-      # ── Update Container App to new image ─────────────────────────────────
+  # ═══════════════════════════════════════════════════════════════════════════
+  # JOB 3 – Deploy / update Azure infrastructure
+  #         Runs when Bicep changed (or forced) AND build-push succeeded or
+  #         was skipped. Blocked if build-push failed.
+  #
+  #         Image resolution:
+  #           • build-push succeeded → use the new image tag from that job
+  #           • build-push skipped   → query the currently running image from
+  #                                    the Container App and reuse it
+  # ═══════════════════════════════════════════════════════════════════════════
+  infrastructure:
+    name: Deploy Infrastructure
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    needs: [detect-changes, build-push]
+    if: |
+      always() &&
+      (
+        needs.detect-changes.outputs.infra_changed == 'true' ||
+        github.event.inputs.force_infra == 'true'
+      ) &&
+      needs.detect-changes.result == 'success' &&
+      (needs.build-push.result == 'success' || needs.build-push.result == 'skipped')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ── OIDC login ────────────────────────────────────────────────────────
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # ── Resolve image to deploy ───────────────────────────────────────────
+      # If build-push ran:    use the newly built tag passed via job output.
+      # If build-push skipped: fetch the image currently running in the
+      #                        Container App so Bicep redeploys with it.
+      - name: Resolve image tag
+        id: image
+        run: |
+          if [ "${{ needs.build-push.result }}" == "success" ]; then
+            IMAGE="${{ env.ACR_NAME }}.azurecr.io/${{ env.APP_NAME }}:${{ needs.build-push.outputs.image_tag }}"
+            echo "source=build-push" >> "$GITHUB_OUTPUT"
+          else
+            echo "build-push was skipped — fetching current image from Container App..."
+            IMAGE=$(az containerapp show \
+              --name           "${{ env.APP_NAME }}-container" \
+              --resource-group "${{ env.RESOURCE_GROUP }}"     \
+              --query          "properties.template.containers[0].image" \
+              --output         tsv)
+            echo "source=existing" >> "$GITHUB_OUTPUT"
+          fi
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "Resolved image: $IMAGE"
+
+      # ── Deploy all Bicep modules, passing the resolved image ──────────────
+      - name: Deploy Bicep Infrastructure
+        id: bicep
+        run: |
+          az deployment group create \
+            --debug                           \
+            --verbose                         \
+            --subscription    "${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
+            --resource-group  "${{ env.RESOURCE_GROUP }}"            \
+            --template-file   bicep/main.bicep                       \
+            --parameters                                              \
+                appName="$APP_NAME"                                   \
+                acrName="$ACR_NAME"                                   \
+                userAssignedIdentityName="$IDENTITY_NAME"             \
+                containerImage="${{ steps.image.outputs.image }}"     \
+
+
+      - name: Print Infrastructure Outputs
+        run: |
+          echo "Image source     : ${{ steps.image.outputs.source }}"
+          echo "Image deployed   : ${{ steps.image.outputs.image }}"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # JOB 4 – Update Container App image
+  #         Only runs when build-push succeeded AND infra was skipped
+  #         (app changed, Bicep did not). When infra ran, the image was
+  #         already set via the Bicep parameter — no second update needed.
+  # ═══════════════════════════════════════════════════════════════════════════
+  update-container-app:
+    name: Update Container App
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    needs: [detect-changes, build-push, infrastructure]
+    if: |
+      always() &&
+      needs.detect-changes.result  == 'success' &&
+      needs.build-push.result      == 'success' &&
+      needs.infrastructure.result  == 'skipped'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ── OIDC login ────────────────────────────────────────────────────────
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # ── Update Container App to the new image ─────────────────────────────
       - name: Update Container App image
         run: |
           az containerapp update \
             --name            "${{ env.APP_NAME }}-container" \
             --resource-group  "${{ env.RESOURCE_GROUP }}"     \
-            --image           "${{ env.ACR_NAME }}.azurecr.io/${{ env.APP_NAME }}:${{ steps.tag.outputs.image_tag }}"
+            --image           "${{ env.ACR_NAME }}.azurecr.io/${{ env.APP_NAME }}:${{ needs.build-push.outputs.image_tag }}"
 
-      # ── Wait for rollout then print URL ───────────────────────────────────
+      # ── Print URL ─────────────────────────────────────────────────────────
       - name: Get App URL
         run: |
           URL=$(az containerapp show \
@@ -210,12 +257,11 @@ jobs:
           echo "❤️  Health : https://$URL/health"
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # JOB 4 – Notify when nothing changed (informational only)
+  # JOB 5 – Notify when nothing changed (informational only)
   # ═══════════════════════════════════════════════════════════════════════════
   no-changes:
     name: No Changes Detected
     runs-on: ubuntu-latest
-    environment: main
     needs: detect-changes
     if: |
       needs.detect-changes.outputs.infra_changed == 'false' &&
@@ -228,4 +274,3 @@ jobs:
           echo "ℹ️  No infrastructure or application changes detected."
           echo "    Skipping deploy. Use 'force_infra' or 'force_app' inputs"
           echo "    in a manual workflow_dispatch run to override."
-
