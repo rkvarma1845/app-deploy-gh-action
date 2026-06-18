@@ -1,4 +1,5 @@
 // ─── Container App Module ─────────────────────────────────────────────────────
+@description('Short application name used as a prefix for all resources.')
 param appName string
 param location string
 param containerAppEnvId string
