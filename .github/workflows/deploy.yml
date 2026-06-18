@@ -105,7 +105,7 @@ jobs:
       # ── Build image tag from short SHA ────────────────────────────────────
       - name: Set image tag
         id: tag
-        run: echo "image_tag=${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
+        run: echo "image_tag=$(date +'%Y%m%d-%H%M')" >> "$GITHUB_OUTPUT"
 
       # ── Login to ACR via Azure CLI (uses the OIDC session) ────────────────
       - name: Login to ACR
@@ -116,14 +116,12 @@ jobs:
         run: |
           docker build \
             -t "${{ env.ACR_NAME }}.azurecr.io/${{ env.APP_NAME }}:${{ steps.tag.outputs.image_tag }}" \
-            -t "${{ env.ACR_NAME }}.azurecr.io/${{ env.APP_NAME }}:latest" \
             .
 
       # ── Push both tagged and latest ───────────────────────────────────────
       - name: Push Docker image
         run: |
           docker push "${{ env.ACR_NAME }}.azurecr.io/${{ env.APP_NAME }}:${{ steps.tag.outputs.image_tag }}"
-          docker push "${{ env.ACR_NAME }}.azurecr.io/${{ env.APP_NAME }}:latest"
 
   # ═══════════════════════════════════════════════════════════════════════════
   # JOB 3 – Deploy / update Azure infrastructure
