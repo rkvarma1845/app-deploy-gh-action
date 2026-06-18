@@ -7,9 +7,13 @@ param uamiId string
 param acrLoginServer string
 param containerImage string
 param appInsightsConnectionString string
+param clientUamis array
+param clientStorageDetails array
+param storageAccountName string
 
-resource containerApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
-  name: '${appName}-container'
+// ─── Per-client Container Apps ────────────────────────────────────────────────
+resource clientContainerApps 'Microsoft.App/containerApps@2023-11-02-preview' = [for (uami, i) in clientUamis: {
+  name: '${appName}-${uami.client}-container'
   location: location
 
   identity: {
@@ -41,8 +45,7 @@ resource containerApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
     template: {
       containers: [
         {
-          name: appName
-          // Use placeholder on first deploy; updated by workflow on each push
+          name: uami.client
           image: empty(containerImage)
             ? 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
             : '${acrLoginServer}/${containerImage}'
@@ -63,6 +66,32 @@ resource containerApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
               name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
               value: appInsightsConnectionString
             }
+            // ── UAMI ────────────────────────────────────────────────────────
+            {
+              name: 'UAMI_CLIENT_ID'
+              value: uami.clientId
+            }
+            {
+              name: 'UAMI_PRINCIPAL_ID'
+              value: uami.principalId
+            }
+            // ── Storage ─────────────────────────────────────────────────────
+            {
+              name: 'STORAGE_ACCOUNT_NAME'
+              value: storageAccountName
+            }
+            {
+              name: 'BLOB_CONTAINER_NAME'
+              value: clientStorageDetails[i].blobContainerName
+            }
+            {
+              name: 'QUEUE_INBOX'
+              value: clientStorageDetails[i].inbox
+            }
+            {
+              name: 'QUEUE_OUTBOX'
+              value: clientStorageDetails[i].outbox
+            }
           ]
         }
       ]
@@ -73,7 +102,11 @@ resource containerApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
       }
     }
   }
-}
+}]
 
-output containerAppName string = containerApp.name
-output fqdn string = containerApp.properties.configuration.ingress.fqdn
+// ─── Outputs ──────────────────────────────────────────────────────────────────
+output clientContainerApps array = [for (uami, i) in clientUamis: {
+  client: uami.client
+  name:   '${uami.client}-container'
+  fqdn:   clientContainerApps[i].properties.configuration.ingress.fqdn
+}]

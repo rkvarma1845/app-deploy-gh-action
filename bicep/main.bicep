@@ -17,17 +17,24 @@ param userAssignedIdentityName string
 @description('Docker image tag to deploy. Leave empty on first infrastructure deploy.')
 param containerImage string = ''
 
+@description('')
+param clientNames array
+
+@description('')
+param storageAccountName string = 'storage-re-dev'
+
 // ─── 1. User Assigned Managed Identity ───────────────────────────────────────
 module uami 'modules/uami.bicep' = {
   name: 'deploy-uami'
   params: {
     identityName: userAssignedIdentityName
     location: location
+    clientNames: clientNames
   }
 }
 
 // ─── 2. Azure Container Registry ─────────────────────────────────────────────
-module acr 'modules/acr.bicep' = {
+module acr 'modules/acr-role.bicep' = {
   name: 'deploy-acr'
   params: {
     acrName: acrName
@@ -54,6 +61,17 @@ module appInsights 'modules/app-insights.bicep' = {
   }
 }
 
+// ─── 4. Azure Storage ─────────────────────────────────────────────────
+module azureStorage 'modules/storage.bicep' = {
+  name: 'storage'
+  params: {
+    location: location
+    storageAccountName: storageAccountName
+    clientNames: clientNames
+    clientUamis: uami.outputs.clientUamiDetails  // from uami.bicep output
+  }
+}
+
 // ─── 5. Container Apps Environment ───────────────────────────────────────────
 module containerEnv 'modules/container-env.bicep' = {
   name: 'deploy-container-env'
@@ -76,12 +94,14 @@ module containerApp 'modules/container-app.bicep' = {
     acrLoginServer: acr.outputs.loginServer
     containerImage: containerImage
     appInsightsConnectionString: appInsights.outputs.connectionString
+    clientUamis: uami.outputs.clientUamiDetails
+    clientStorageDetails: azureStorage.outputs.clientStorageDetails
+    storageAccountName: storageAccountName
   }
 }
 
 // ─── Outputs ──────────────────────────────────────────────────────────────────
 output acrLoginServer string = acr.outputs.loginServer
-output containerAppName string = containerApp.outputs.containerAppName
-output appUrl string = 'https://${containerApp.outputs.fqdn}'
+output clientContainerApps array = containerApp.outputs.clientContainerApps
 output appInsightsName string = appInsights.outputs.appInsightsName
 output logAnalyticsName string = logAnalytics.outputs.workspaceName
