@@ -4,7 +4,7 @@ param location string
 param containerAppEnvId string
 param uamiId string
 param acrLoginServer string
-param imageTag string
+param containerImage string
 param appInsightsConnectionString string
 
 resource containerApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
@@ -42,9 +42,9 @@ resource containerApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
         {
           name: appName
           // Use placeholder on first deploy; updated by workflow on each push
-          image: empty(imageTag)
+          image: empty(containerImage)
             ? 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
-            : '${acrLoginServer}/${appName}:${imageTag}'
+            : '${acrLoginServer}/${containerImage}'
           resources: {
             cpu: json('0.5')
             memory: '1Gi'

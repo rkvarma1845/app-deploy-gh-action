@@ -15,7 +15,7 @@ param acrName string
 param userAssignedIdentityName string
 
 @description('Docker image tag to deploy. Leave empty on first infrastructure deploy.')
-param imageTag string = ''
+param containerImage string = ''
 
 // ─── 1. User Assigned Managed Identity ───────────────────────────────────────
 module uami 'modules/uami.bicep' = {
@@ -74,7 +74,7 @@ module containerApp 'modules/container-app.bicep' = {
     containerAppEnvId: containerEnv.outputs.envId
     uamiId: uami.outputs.uamiId
     acrLoginServer: acr.outputs.loginServer
-    imageTag: imageTag
+    containerImage: containerImage
     appInsightsConnectionString: appInsights.outputs.connectionString
   }
 }
