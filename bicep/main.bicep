@@ -21,7 +21,7 @@ param containerImage string = ''
 param clientNames array
 
 @description('')
-param storageAccountName string = 'storage-re-dev'
+param storageAccountName string = 'enginestoragedev'
 
 // ─── 1. User Assigned Managed Identity ───────────────────────────────────────
 module uami 'modules/uami.bicep' = {
