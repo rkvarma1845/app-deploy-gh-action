@@ -20,7 +20,7 @@ app.use((req, res, next) => {
 app.get('/', (req, res) => {
     return res.status(200).json({
         success: true,
-        message: 'Hello from the server v2 deploy',
+        message: 'Hello from the server v1 deploy',
         version: process.env.npm_package_version ?? '1.0.0',
     })
 })
