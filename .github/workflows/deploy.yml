@@ -34,7 +34,7 @@ env:
   RESOURCE_GROUP: nodejs-app-rg
   IDENTITY_NAME: nodejs-uami
   LOCATION: centralindia
-  CLIENT_NAMES: '["client1", "client2"]'
+  CLIENT_NAMES: '["client1", "client2", "client3"]'
 
 # ─── Cancel in-flight runs on the same branch ────────────────────────────────
 concurrency:
