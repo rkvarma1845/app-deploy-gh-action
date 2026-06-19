@@ -20,6 +20,7 @@ resource clientContainerApps 'Microsoft.App/containerApps@2023-11-02-preview' = 
     type: 'UserAssigned'
     userAssignedIdentities: {
       '${uamiId}': {}
+      '${uami.uamiId}': {}
     }
   }
 

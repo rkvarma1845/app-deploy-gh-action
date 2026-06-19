@@ -35,7 +35,7 @@ module uami 'modules/uami.bicep' = {
 
 // ─── 2. Azure Container Registry ─────────────────────────────────────────────
 module acr 'modules/acr-role.bicep' = {
-  name: 'deploy-acr'
+  name: 'deploy-acr-roll'
   params: {
     acrName: acrName
     uamiPrincipalId: uami.outputs.principalId
