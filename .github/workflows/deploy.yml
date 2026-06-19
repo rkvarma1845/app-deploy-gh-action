@@ -159,10 +159,6 @@ jobs:
           tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # ── Resolve image to deploy ───────────────────────────────────────────
-      # If build-push ran:    use the newly built tag passed via job output.
-      # If build-push skipped: fetch the image currently running in the
-      #                        Container App so Bicep redeploys with it.
       - name: Resolve image tag
         id: image
         run: |
@@ -170,16 +166,17 @@ jobs:
             IMAGE="${{ env.ACR_NAME }}.azurecr.io/${{ env.APP_NAME }}:${{ needs.build-push.outputs.image_tag }}"
             echo "source=build-push" >> "$GITHUB_OUTPUT"
           else
-            echo "build-push was skipped — fetching current image from Container App..."
+            echo "build-push was skipped — fetching current image from first client container app..."
+            CLIENT=$(echo '${{ env.CLIENT_NAMES }}' | jq -r '.[0]')
             IMAGE=$(az containerapp show \
-              --name           "${{ env.APP_NAME }}-container" \
-              --resource-group "${{ env.RESOURCE_GROUP }}"     \
+              --name           "${{ env.APP_NAME }}-${CLIENT}-container" \
+              --resource-group "${{ env.RESOURCE_GROUP }}" \
               --query          "properties.template.containers[0].image" \
               --output         tsv)
             echo "source=existing" >> "$GITHUB_OUTPUT"
           fi
 
-          IMAGE_NAME_TAG="${IMAGE##*/}"   # strips everything before last /
+          IMAGE_NAME_TAG="${IMAGE##*/}"
           echo "image=$IMAGE_NAME_TAG" >> "$GITHUB_OUTPUT"
           echo "Resolved image: $IMAGE_NAME_TAG"
 
@@ -187,7 +184,7 @@ jobs:
       - name: Deploy Bicep Infrastructure
         id: bicep
         run: |
-          az deployment group create \
+          RESULT=$(az deployment group create \
             --debug                           \
             --verbose                         \
             --subscription    "${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
@@ -198,7 +195,10 @@ jobs:
                 acrName="$ACR_NAME"                                   \
                 userAssignedIdentityName="$IDENTITY_NAME"             \
                 containerImage="${{ steps.image.outputs.image }}"     \
-                clientNames="$CLIENT_NAMES"
+                clientNames="$CLIENT_NAMES"                           \
+            --output json)
+          
+          echo "client_container_apps=$(echo "$RESULT" | jq -c '.properties.outputs.clientContainerApps.value')" >> "$GITHUB_OUTPUT"
 
 
       - name: Print Infrastructure Outputs
@@ -235,26 +235,30 @@ jobs:
           tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # ── Update Container App to the new image ─────────────────────────────
-      - name: Update Container App image
+      - name: Update Container App images
         run: |
-          az containerapp update \
-            --name            "${{ env.APP_NAME }}-container" \
-            --resource-group  "${{ env.RESOURCE_GROUP }}"     \
-            --image           "${{ env.ACR_NAME }}.azurecr.io/${{ env.APP_NAME }}:${{ needs.build-push.outputs.image_tag }}"
+          IMAGE="${{ env.ACR_NAME }}.azurecr.io/${{ env.APP_NAME }}:${{ needs.build-push.outputs.image_tag }}"
 
-      # ── Print URL ─────────────────────────────────────────────────────────
-      - name: Get App URL
+          for CLIENT in $(echo '${{ env.CLIENT_NAMES }}' | jq -r '.[]'); do
+            echo "▶ Updating ${{ env.APP_NAME }}-${CLIENT}-container..."
+            az containerapp update \
+              --name           "${{ env.APP_NAME }}-${CLIENT}-container" \
+              --resource-group "${{ env.RESOURCE_GROUP }}" \
+              --image          "$IMAGE"
+          done
+
+      - name: Get App URLs
         run: |
-          URL=$(az containerapp show \
-            --name           "${{ env.APP_NAME }}-container" \
-            --resource-group "${{ env.RESOURCE_GROUP }}"     \
-            --query          "properties.configuration.ingress.fqdn" \
-            --output tsv)
           echo ""
-          echo "✅ Deployment complete!"
-          echo "🌐 App URL: https://$URL"
-          echo "❤️  Health : https://$URL/health"
+          for CLIENT in $(echo '${{ env.CLIENT_NAMES }}' | jq -r '.[]'); do
+            URL=$(az containerapp show \
+              --name           "${{ env.APP_NAME }}-${CLIENT}-container" \
+              --resource-group "${{ env.RESOURCE_GROUP }}" \
+              --query          "properties.configuration.ingress.fqdn" \
+              --output tsv)
+            echo "✅ ${CLIENT} — https://$URL"
+            echo "❤️  Health  — https://$URL/health"
+          done
 
   # ═══════════════════════════════════════════════════════════════════════════
   # JOB 5 – Notify when nothing changed (informational only)
