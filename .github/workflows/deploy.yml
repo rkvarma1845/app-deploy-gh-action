@@ -33,7 +33,7 @@ env:
   ACR_NAME: depappacr
   RESOURCE_GROUP: nodejs-app-rg
   LOCATION: centralindia
-  CLIENT_NAMES: '["client1", "client2", "client3"]'
+  CLIENT_NAMES: '["client1", "client2", "client3", "client4"]'
   IMAGE_NAME: rengine
 
 # ─── Cancel in-flight runs on the same branch ────────────────────────────────
