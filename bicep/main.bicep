@@ -12,7 +12,7 @@ param location string = resourceGroup().location
 param acrName string
 
 @description('Docker image tag to deploy. Leave empty on first infrastructure deploy.')
-param containerImage string = ''
+param containerImage string
 
 @description('')
 param clientNames array

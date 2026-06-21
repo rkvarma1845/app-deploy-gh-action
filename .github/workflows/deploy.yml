@@ -32,9 +32,9 @@ env:
   APP_NAME: nodejs-app
   ACR_NAME: depappacr
   RESOURCE_GROUP: nodejs-app-rg
-  IDENTITY_NAME: nodejs-uami
   LOCATION: centralindia
   CLIENT_NAMES: '["client1", "client2", "client3"]'
+  IMAGE_NAME: rengine
 
 # ─── Cancel in-flight runs on the same branch ────────────────────────────────
 concurrency:
@@ -115,13 +115,13 @@ jobs:
       - name: Build Docker image
         run: |
           docker build \
-            -t "${{ env.ACR_NAME }}.azurecr.io/${{ env.APP_NAME }}:${{ steps.tag.outputs.image_tag }}" \
+            -t "${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}" \
             .
 
       # ── Push both tagged and latest ───────────────────────────────────────
       - name: Push Docker image
         run: |
-          docker push "${{ env.ACR_NAME }}.azurecr.io/${{ env.APP_NAME }}:${{ steps.tag.outputs.image_tag }}"
+          docker push "${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}"
 
   # ═══════════════════════════════════════════════════════════════════════════
   # JOB 3 – Deploy / update Azure infrastructure
@@ -163,7 +163,7 @@ jobs:
         id: image
         run: |
           if [ "${{ needs.build-push.result }}" == "success" ]; then
-            IMAGE="${{ env.ACR_NAME }}.azurecr.io/${{ env.APP_NAME }}:${{ needs.build-push.outputs.image_tag }}"
+            IMAGE="${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ needs.build-push.outputs.image_tag }}"
             echo "source=build-push" >> "$GITHUB_OUTPUT"
           else
             echo "build-push was skipped — fetching current image from first client container app..."
@@ -193,7 +193,6 @@ jobs:
             --parameters                                              \
                 appName="$APP_NAME"                                   \
                 acrName="$ACR_NAME"                                   \
-                userAssignedIdentityName="$IDENTITY_NAME"             \
                 containerImage="${{ steps.image.outputs.image }}"     \
                 clientNames="$CLIENT_NAMES"                           \
             --output json)

@@ -45,9 +45,7 @@ resource clientContainerApps 'Microsoft.App/containerApps@2023-11-02-preview' = 
       containers: [
         {
           name: uami.client
-          image: empty(containerImage)
-            ? 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
-            : '${acrLoginServer}/${containerImage}'
+          image: '${acrLoginServer}/${containerImage}'
           resources: {
             cpu: json('0.5')
             memory: '1Gi'
