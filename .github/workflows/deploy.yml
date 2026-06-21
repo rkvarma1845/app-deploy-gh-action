@@ -35,7 +35,6 @@ env:
   LOCATION: centralindia
   CLIENT_NAMES: '["client1", "client2", "client3"]'
   IMAGE_NAME: rengine
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 # ─── Cancel in-flight runs on the same branch ────────────────────────────────
 concurrency:
@@ -64,7 +63,7 @@ jobs:
 
       - name: Detect changed paths
         id: changes
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v4
         with:
           filters: |
             infra:
