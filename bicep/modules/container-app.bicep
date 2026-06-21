@@ -3,7 +3,6 @@
 param appName string
 param location string
 param containerAppEnvId string
-param uamiId string
 param acrLoginServer string
 param containerImage string
 param appInsightsConnectionString string
@@ -19,7 +18,6 @@ resource clientContainerApps 'Microsoft.App/containerApps@2023-11-02-preview' = 
   identity: {
     type: 'UserAssigned'
     userAssignedIdentities: {
-      '${uamiId}': {}
       '${uami.uamiId}': {}
     }
   }
@@ -38,7 +36,7 @@ resource clientContainerApps 'Microsoft.App/containerApps@2023-11-02-preview' = 
       registries: [
         {
           server: acrLoginServer
-          identity: uamiId
+          identity: uami.uamiId
         }
       ]
     }

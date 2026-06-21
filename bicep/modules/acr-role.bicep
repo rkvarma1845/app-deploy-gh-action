@@ -1,7 +1,7 @@
 // ─── Azure Container Registry Module ──────────────────────────────────────────
 param acrName string
 // param location string
-param uamiPrincipalId string
+param clientUamis array
 
 // ─── ACR Resource ─────────────────────────────────────────────────────────────
 resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
@@ -9,11 +9,11 @@ resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
 }
 
 // ─── Grant UAMI AcrPull role on ACR ───────────────────────────────────────────
-resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(acr.id, uamiPrincipalId, 'acrpull')
+resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for (uami, i) in clientUamis: {
+  name: guid(acr.id, uami.principalId, 'acrpull')
   scope: acr
   properties: {
-    principalId: uamiPrincipalId
+    principalId: uami.principalId
     // AcrPull built-in role ID
     roleDefinitionId: subscriptionResourceId(
       'Microsoft.Authorization/roleDefinitions',
@@ -21,7 +21,7 @@ resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-
     )
     principalType: 'ServicePrincipal'
   }
-}
+}]
 
 output acrId string = acr.id
 output acrName string = acr.name

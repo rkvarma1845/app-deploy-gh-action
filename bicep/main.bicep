@@ -11,9 +11,6 @@ param location string = resourceGroup().location
 @description('Name of the Azure Container Registry (must be globally unique, alphanumeric).')
 param acrName string
 
-@description('Name of the User Assigned Managed Identity.')
-param userAssignedIdentityName string
-
 @description('Docker image tag to deploy. Leave empty on first infrastructure deploy.')
 param containerImage string = ''
 
@@ -27,7 +24,6 @@ param storageAccountName string = 'enginestoragedev'
 module uami 'modules/uami.bicep' = {
   name: 'deploy-uami'
   params: {
-    identityName: userAssignedIdentityName
     location: location
     clientNames: clientNames
   }
@@ -38,7 +34,7 @@ module acr 'modules/acr-role.bicep' = {
   name: 'deploy-acr-roll'
   params: {
     acrName: acrName
-    uamiPrincipalId: uami.outputs.principalId
+    clientUamis: uami.outputs.clientUamiDetails
   }
 }
 
@@ -90,7 +86,6 @@ module containerApp 'modules/container-app.bicep' = {
     appName: appName
     location: location
     containerAppEnvId: containerEnv.outputs.envId
-    uamiId: uami.outputs.uamiId
     acrLoginServer: acr.outputs.loginServer
     containerImage: containerImage
     appInsightsConnectionString: appInsights.outputs.connectionString
