@@ -35,6 +35,7 @@ env:
   LOCATION: centralindia
   CLIENT_NAMES: '["client1", "client2", "client3"]'
   IMAGE_NAME: rengine
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 # ─── Cancel in-flight runs on the same branch ────────────────────────────────
 concurrency:
@@ -57,7 +58,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 2   # Full history needed for accurate diff
 
@@ -92,7 +93,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # ── OIDC login ────────────────────────────────────────────────────────
       - name: Azure Login (OIDC)
@@ -149,7 +150,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # ── OIDC login ────────────────────────────────────────────────────────
       - name: Azure Login (OIDC)
@@ -224,7 +225,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # ── OIDC login ────────────────────────────────────────────────────────
       - name: Azure Login (OIDC)
