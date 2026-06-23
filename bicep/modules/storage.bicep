@@ -2,7 +2,7 @@
 param location string
 param storageAccountName string
 param clientNames array
-param clientUamis array   // expects output from uami.bicep: [{client, uamiId, principalId, ...}]
+param clientDetails array   // expects output from uami.bicep: [{client, uamiId, principalId, ...}]
 
 // ─── Role Definition IDs ──────────────────────────────────────────────────────
 var storageBlobDataContributorRoleId = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
@@ -55,23 +55,23 @@ resource outboxQueues 'Microsoft.Storage/storageAccounts/queueServices/queues@20
 }]
 
 // ─── Blob Contributor role for each client UAMI ───────────────────────────────
-resource blobRoleAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for (client, i) in clientUamis: {
-  name: guid(storageAccount.id, client.principalId, storageBlobDataContributorRoleId)
+resource blobRoleAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for (client, i) in clientDetails: {
+  name: guid(storageAccount.id, client.clientPrincipalId, storageBlobDataContributorRoleId)
   scope: storageAccount
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataContributorRoleId)
-    principalId: client.principalId
+    principalId: client.clientPrincipalId
     principalType: 'ServicePrincipal'
   }
 }]
 
 // ─── Queue Contributor role for each client UAMI ─────────────────────────────
-resource queueRoleAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for (client, i) in clientUamis: {
-  name: guid(storageAccount.id, client.principalId, storageQueueDataContributorRoleId)
+resource queueRoleAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for (client, i) in clientDetails: {
+  name: guid(storageAccount.id, client.clientPrincipalId, storageQueueDataContributorRoleId)
   scope: storageAccount
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageQueueDataContributorRoleId)
-    principalId: client.principalId
+    principalId: client.clientPrincipalId
     principalType: 'ServicePrincipal'
   }
 }]

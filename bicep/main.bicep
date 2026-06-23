@@ -15,17 +15,28 @@ param acrName string
 param containerImage string
 
 @description('')
-param clientNames array
-
-@description('')
 param storageAccountName string = 'enginestoragedev'
+
+@description('Client Details')
+param clientNames array
+param clientIds array
+param clientSecrets array
+param clientPrincipalIds array
+
+var clientDetails array = [for i in range(0, length(clientNames)): {
+  name: toLower(clientNames[i])
+  clientId: clientIds[i]
+  clientSecret: clientSecrets[i]
+  clientPrincipalId: clientPrincipalIds[i]
+}]
+
+
 
 // ─── 1. User Assigned Managed Identity ───────────────────────────────────────
 module uami 'modules/uami.bicep' = {
   name: 'deploy-uami'
   params: {
     location: location
-    clientNames: clientNames
   }
 }
 
@@ -34,7 +45,7 @@ module acr 'modules/acr-role.bicep' = {
   name: 'deploy-acr-roll'
   params: {
     acrName: acrName
-    clientUamis: uami.outputs.clientUamiDetails
+    uamiPrincipalId: uami.outputs.uamiPrincipalId
   }
 }
 
@@ -64,7 +75,7 @@ module azureStorage 'modules/storage.bicep' = {
     location: location
     storageAccountName: storageAccountName
     clientNames: clientNames
-    clientUamis: uami.outputs.clientUamiDetails  // from uami.bicep output
+    clientDetails: clientDetails  // from uami.bicep output
   }
 }
 
@@ -89,9 +100,10 @@ module containerApp 'modules/container-app.bicep' = {
     acrLoginServer: acr.outputs.loginServer
     containerImage: containerImage
     appInsightsConnectionString: appInsights.outputs.connectionString
-    clientUamis: uami.outputs.clientUamiDetails
+    clientDetails: clientDetails
     clientStorageDetails: azureStorage.outputs.clientStorageDetails
     storageAccountName: storageAccountName
+    uamiId: uami.outputs.uamiId
   }
 }
 

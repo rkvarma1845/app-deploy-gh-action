@@ -33,7 +33,6 @@ env:
   ACR_NAME: depappacr
   RESOURCE_GROUP: nodejs-app-rg
   LOCATION: centralindia
-  CLIENT_NAMES: '["client1", "client2", "client3", "client4"]'
   IMAGE_NAME: rengine
 
 # ─── Cancel in-flight runs on the same branch ────────────────────────────────
@@ -167,7 +166,7 @@ jobs:
             echo "source=build-push" >> "$GITHUB_OUTPUT"
           else
             echo "build-push was skipped — fetching current image from first client container app..."
-            CLIENT=$(echo '${{ env.CLIENT_NAMES }}' | jq -r '.[0]')
+            CLIENT=$(echo '${{ vars.CLIENTNAMES }}' | jq -r '.[0]')
             IMAGE=$(az containerapp show \
               --name           "${{ env.APP_NAME }}-${CLIENT}-container" \
               --resource-group "${{ env.RESOURCE_GROUP }}" \
@@ -194,7 +193,10 @@ jobs:
                 appName="$APP_NAME"                                   \
                 acrName="$ACR_NAME"                                   \
                 containerImage="${{ steps.image.outputs.image }}"     \
-                clientNames="$CLIENT_NAMES"                           \
+                clientNames="${{ vars.clientNames }}"     \
+                clientIds="${{ vars.clientIds }}"     \
+                clientSecrets="${{ vars.clientSecrets }}"     \
+                containerImage="${{ vars.clientPrincipalIds }}"     \
             --output json)
           
           echo "client_container_apps=$(echo "$RESULT" | jq -c '.properties.outputs.clientContainerApps.value')" >> "$GITHUB_OUTPUT"
@@ -238,7 +240,7 @@ jobs:
         run: |
           IMAGE="${{ env.ACR_NAME }}.azurecr.io/${{ env.APP_NAME }}:${{ needs.build-push.outputs.image_tag }}"
 
-          for CLIENT in $(echo '${{ env.CLIENT_NAMES }}' | jq -r '.[]'); do
+          for CLIENT in $(echo '${{ vars.CLIENTNAMES }}' | jq -r '.[]'); do
             echo "▶ Updating ${{ env.APP_NAME }}-${CLIENT}-container..."
             az containerapp update \
               --name           "${{ env.APP_NAME }}-${CLIENT}-container" \
@@ -249,7 +251,7 @@ jobs:
       - name: Get App URLs
         run: |
           echo ""
-          for CLIENT in $(echo '${{ env.CLIENT_NAMES }}' | jq -r '.[]'); do
+          for CLIENT in $(echo '${{ vars.CLIENTNAMES }}' | jq -r '.[]'); do
             URL=$(az containerapp show \
               --name           "${{ env.APP_NAME }}-${CLIENT}-container" \
               --resource-group "${{ env.RESOURCE_GROUP }}" \

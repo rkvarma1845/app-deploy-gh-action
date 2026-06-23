@@ -6,19 +6,20 @@ param containerAppEnvId string
 param acrLoginServer string
 param containerImage string
 param appInsightsConnectionString string
-param clientUamis array
+param clientDetails array
 param clientStorageDetails array
 param storageAccountName string
+param uamiId string
 
 // ─── Per-client Container Apps ────────────────────────────────────────────────
-resource clientContainerApps 'Microsoft.App/containerApps@2023-11-02-preview' = [for (uami, i) in clientUamis: {
-  name: '${appName}-${uami.client}-container'
+resource clientContainerApps 'Microsoft.App/containerApps@2023-11-02-preview' = [for (client, i) in clientDetails: {
+  name: '${appName}-${client.name}-container'
   location: location
 
   identity: {
     type: 'UserAssigned'
     userAssignedIdentities: {
-      '${uami.uamiId}': {}
+      '${uamiId}': {}
     }
   }
 
@@ -36,7 +37,7 @@ resource clientContainerApps 'Microsoft.App/containerApps@2023-11-02-preview' = 
       registries: [
         {
           server: acrLoginServer
-          identity: uami.uamiId
+          identity: uamiId
         }
       ]
     }
@@ -44,7 +45,7 @@ resource clientContainerApps 'Microsoft.App/containerApps@2023-11-02-preview' = 
     template: {
       containers: [
         {
-          name: uami.client
+          name: client.name
           image: '${acrLoginServer}/${containerImage}'
           resources: {
             cpu: json('0.5')
@@ -65,12 +66,12 @@ resource clientContainerApps 'Microsoft.App/containerApps@2023-11-02-preview' = 
             }
             // ── UAMI ────────────────────────────────────────────────────────
             {
-              name: 'UAMI_CLIENT_ID'
-              value: uami.clientId
+              name: 'clientId'
+              value: client.clientId
             }
             {
-              name: 'UAMI_PRINCIPAL_ID'
-              value: uami.principalId
+              name: 'clientSecret'
+              value: client.clientSecret
             }
             // ── Storage ─────────────────────────────────────────────────────
             {
@@ -102,7 +103,7 @@ resource clientContainerApps 'Microsoft.App/containerApps@2023-11-02-preview' = 
 }]
 
 // ─── Outputs ──────────────────────────────────────────────────────────────────
-output clientContainerApps array = [for (uami, i) in clientUamis: {
+output clientContainerApps array = [for (uami, i) in clientDetails: {
   client: uami.client
   name:   '${uami.client}-container'
   fqdn:   clientContainerApps[i].properties.configuration.ingress.fqdn
