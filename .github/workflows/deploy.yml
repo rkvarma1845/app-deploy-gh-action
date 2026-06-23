@@ -193,7 +193,7 @@ jobs:
                 appName="$APP_NAME"                                   \
                 acrName="$ACR_NAME"                                   \
                 containerImage="${{ steps.image.outputs.image }}"     \
-                clientNames="${{ vars.clientNames }}"     \
+                clientNames="${{ vars.CLIENTNAMES }}"     \
                 clientIds="${{ vars.clientIds }}"     \
                 clientSecrets="${{ vars.clientSecrets }}"     \
                 containerImage="${{ vars.clientPrincipalIds }}"     \
