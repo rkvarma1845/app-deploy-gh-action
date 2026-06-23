@@ -109,6 +109,5 @@ module containerApp 'modules/container-app.bicep' = {
 
 // ─── Outputs ──────────────────────────────────────────────────────────────────
 output acrLoginServer string = acr.outputs.loginServer
-output clientContainerApps array = containerApp.outputs.clientContainerApps
 output appInsightsName string = appInsights.outputs.appInsightsName
 output logAnalyticsName string = logAnalytics.outputs.workspaceName

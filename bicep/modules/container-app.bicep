@@ -103,8 +103,3 @@ resource clientContainerApps 'Microsoft.App/containerApps@2023-11-02-preview' = 
 }]
 
 // ─── Outputs ──────────────────────────────────────────────────────────────────
-output clientContainerApps array = [for (uami, i) in clientDetails: {
-  client: uami.client
-  name:   '${uami.client}-container'
-  fqdn:   clientContainerApps[i].properties.configuration.ingress.fqdn
-}]
