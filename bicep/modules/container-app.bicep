@@ -7,10 +7,8 @@ param namePrefix string
 // Image parameters:
 param DockerImage string
 
-// Logging
-
+param storage_account_name string
 // Genreal Variables
-param NoofThreads string
 param TenantId string
 
 param containerAppEnvironmentId string

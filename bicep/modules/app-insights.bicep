@@ -1,10 +1,10 @@
 // ─── Application Insights Module ──────────────────────────────────────────────
-param appName string
+param applicationInsightsName string
 param location string
 param logAnalyticsWorkspaceId string
 
 resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
-  name: '${appName}-appinsights'
+  name: applicationInsightsName
   location: location
   kind: 'web'
   properties: {

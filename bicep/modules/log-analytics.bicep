@@ -1,9 +1,9 @@
 // ─── Log Analytics Workspace Module ───────────────────────────────────────────
-param appName string
+param logAnalyticsWorkspaceName string
 param location string
 
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
-  name: '${appName}-logs'
+  name: logAnalyticsWorkspaceName
   location: location
   properties: {
     sku: {

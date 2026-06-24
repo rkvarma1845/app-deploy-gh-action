@@ -180,10 +180,10 @@ jobs:
             --template-file infra/main.bicep \
             --parameters  environment_name="${{ vars.environment_name }}" \
                 acr_name="${{ vars.acr_name }}" \
-                owner="${{ vars.owner }}" \
                 namePrefix="${{ vars.namePrefix }}" \
                 DockerImage="${{ steps.image.outputs.image }}" \
                 storage_account_name="${{ vars.storage_account_name }}" \
+                TenantId="${{ vars.TenantId }}" \
                 container_app_env_location="${{ vars.container_app_env_location }}" \
                 clientNames="${{ vars.clientNames }}" \
                 clientIds="${{ vars.clientIds }}" \

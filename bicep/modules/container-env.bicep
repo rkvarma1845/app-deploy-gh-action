@@ -1,18 +1,19 @@
 // ─── Container Apps Environment Module ───────────────────────────────────────
-param appName string
+param conatainerAppEnvName string
 param location string
-param logAnalyticsCustomerId string
-param logAnalyticsPrimaryKey string
+param logAnalyticsWorkspaceCustomerId string
+@secure()
+param logAnalyticsWorkspaceSharedKey string
 
 resource containerAppEnv 'Microsoft.App/managedEnvironments@2023-11-02-preview' = {
-  name: '${appName}-env'
+  name: conatainerAppEnvName
   location: location
   properties: {
     appLogsConfiguration: {
       destination: 'log-analytics'
       logAnalyticsConfiguration: {
-        customerId: logAnalyticsCustomerId
-        sharedKey: logAnalyticsPrimaryKey
+        customerId: logAnalyticsWorkspaceCustomerId
+        sharedKey: logAnalyticsWorkspaceSharedKey
       }
     }
   }

@@ -1,17 +1,12 @@
 #!/usr/bin/env bash
 # Deletes Azure Service Principals by display name
 # Usage: Edit CLIENT_NAMES below, then run: bash delete_service_principals.sh
+set -euo pipefail
 
 # ── INPUT: Same list used to create SPs ──────────────────────────────────────
 CLIENT_NAMES=(
     "client-one"
     "client-two"
-    "client-three"
-    "client-four"
-    "client-five"
-    "client-six"
-    "client-seven"
-    "client-eight"
 )
 # ─────────────────────────────────────────────────────────────────────────────
 

@@ -1,8 +1,9 @@
 // ─── User Assigned Managed Identity Module ────────────────────────────────────
+param rengineUamiName string
 param location string
 
 resource clientUami 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: 'deply-ca-uami'
+  name: rengineUamiName
   location: location
 }
 

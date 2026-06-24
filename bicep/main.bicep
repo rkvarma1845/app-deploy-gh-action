@@ -1,7 +1,6 @@
 param location string = resourceGroup().location
 param environment_name string
 param acr_name string
-param owner string
 
 @description('Prefix name to create resources')
 param namePrefix string
@@ -19,6 +18,9 @@ param conatainerAppEnvName string = '${namePrefix}-cae-${environment_name}'
 param rengineUamiName string = '${namePrefix}-uami-${environment_name}'
 
 param DockerImage string
+
+param storage_account_name string
+param TenantId string
 
 @description('Location for container app env and container app')
 param container_app_env_location string
@@ -62,17 +64,16 @@ module acr 'modules/acr-role.bicep' = {
 }
 
 // ─── 3. Log Analytics Workspace ──────────────────────────────────────────────
-module logAnalytics 'modules/logAnalytics.bicep' = {
+module logAnalytics 'modules/log-analytics.bicep' = {
   name: 'deploy-log-analytics'
   params: {
     logAnalyticsWorkspaceName: logAnalyticsWorkspaceName
     location: location
-    tags: tags
   }
 }
 
 // ─── 4. Application Insights ─────────────────────────────────────────────────
-module appInsights 'modules/appInsights.bicep' = {
+module appInsights 'modules/app-insights.bicep' = {
   name: 'deploy-app-insights'
   params: {
     applicationInsightsName: applicationInsightsName
@@ -99,18 +100,18 @@ module AzureStorage 'modules/storage.bicep' = {
 }
 
 // ─── 5. Container Apps Environment ───────────────────────────────────────────
-module ContainerEnv 'modules/containerEnv.bicep' = {
+module ContainerEnv 'modules/container-env.bicep' = {
   name: 'deploy-container-env'
   params: {
     conatainerAppEnvName: conatainerAppEnvName
     location: container_app_env_location
     logAnalyticsWorkspaceCustomerId: logAnalytics.outputs.customerId
-    logAnalyticsWorkspaceSharedKey: logAnalytics.outputs.sharedKey
+    logAnalyticsWorkspaceSharedKey: logAnalytics.outputs.primarySharedKey
   }
 }
 
 // ─── 6. Container App ─────────────────────────────────────────────────────────
-module ContainerApp 'modules/containerApp.bicep' = {
+module ContainerApp 'modules/container-app.bicep' = {
   name: 'deploy-container-app'
   params: {
     location: container_app_env_location
