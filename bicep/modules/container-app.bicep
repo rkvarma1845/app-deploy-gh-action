@@ -1,105 +1,155 @@
-// ─── Container App Module ─────────────────────────────────────────────────────
-@description('Short application name used as a prefix for all resources.')
-param appName string
 param location string
-param containerAppEnvId string
+param environment_name string
+
+// Resource names prefix
+param namePrefix string
+
+// Image parameters:
+param DockerImage string
+
+// Logging
+
+// Genreal Variables
+param NoofThreads string
+param TenantId string
+
+param containerAppEnvironmentId string
+param AppInsightsInstrumentationKey string
+
 param acrLoginServer string
-param containerImage string
-param appInsightsConnectionString string
 param clientDetails array
-param clientStorageDetails array
-param storageAccountName string
 param uamiId string
 
-// ─── Per-client Container Apps ────────────────────────────────────────────────
-resource clientContainerApps 'Microsoft.App/containerApps@2023-11-02-preview' = [for (client, i) in clientDetails: {
-  name: '${appName}-${client.name}-container'
-  location: location
+// Resources
+param ContainerAppCpu int
+param ContainerAppMemory string
+param ContainerAppMinReplicas int
+param ContainerAppMaxReplicas int
 
-  identity: {
-    type: 'UserAssigned'
-    userAssignedIdentities: {
-      '${uamiId}': {}
+resource ContainerApp 'Microsoft.App/containerApps@2024-03-01' = [
+  for (client, index) in clientDetails: {
+    name: take(toLower('${namePrefix}-${client.name}-${environment_name}'), 32)
+    location: location
+    identity: {
+      type: 'UserAssigned'
+      userAssignedIdentities: { '${uamiId}': {} }
     }
-  }
-
-  properties: {
-    managedEnvironmentId: containerAppEnvId
-
-    configuration: {
-      ingress: {
-        external: true
-        targetPort: 8080
-        transport: 'http'
-        allowInsecure: false
-      }
-
-      registries: [
-        {
-          server: acrLoginServer
-          identity: uamiId
+    properties: {
+      environmentId: containerAppEnvironmentId
+      workloadProfileName: 'Consumption'
+      configuration: {
+        activeRevisionsMode: 'Single'
+        ingress: {
+          external: true
+          transport: 'auto'
+          allowInsecure: false
+          targetPort: 8080
         }
-      ]
-    }
-
-    template: {
-      containers: [
-        {
-          name: client.name
-          image: '${acrLoginServer}/${containerImage}'
-          resources: {
-            cpu: json('0.5')
-            memory: '1Gi'
+        registries: [
+          {
+            server: acrLoginServer
+            identity: uamiId
           }
-          env: [
-            {
-              name: 'NODE_ENV'
-              value: 'production'
+        ]
+      }
+      template: {
+        containers: [
+          {
+            env: [
+              {
+                name: 'environment_name'
+                value: environment_name
+              }
+              // QueueProcessing
+              {
+                name: 'AppSettings__QueueProcessing__QueueName'
+                value: toLower('${namePrefix}-batch-processing-${client.name}-${environment_name}')
+              }
+              // AzureQueueDetails
+              {
+                name: 'AppSettings__AzureBlobDetails__AccountName'
+                value: storage_account_name
+              }
+              {
+                name: 'AppSettings__AzureBlobDetails__ClientId'
+                value: client.clientId
+              }
+              {
+                name: 'AppSettings__AzureBlobDetails__ClientSecret'
+                value: client.clientSecret
+              }
+              {
+                name: 'AppSettings__AzureBlobDetails__TenantId'
+                value: TenantId
+              }
+              // Azure Blob Storage
+              {
+                name: 'AppSettings__AzureBlobStorage__ContainerName'
+                value: toLower('${namePrefix}-${client}-${environment_name}')
+              }
+              {
+                name: 'AppInsightsInstrumentationKey'
+                value: AppInsightsInstrumentationKey
+              }
+            ]
+            image: '${acrLoginServer}/${DockerImage}'
+            name: namePrefix
+            resources: {
+              cpu: ContainerAppCpu
+              memory: ContainerAppMemory
             }
+          }
+        ]
+        scale: {
+          minReplicas: ContainerAppMinReplicas
+          maxReplicas: ContainerAppMaxReplicas
+          rules: [
+            // Rule 1 - scale on batch-processing queue
             {
-              name: 'PORT'
-              value: '8080'
+              name: 'batch-processing-queue-depth'
+              custom: {
+                type: 'azure-queue'
+                metadata: {
+                  queueName: toLower('${namePrefix}-batch-processing-${client.name}-${environment_name}')
+                  accountName: storage_account_name
+                  queueLength: '1' // one message → one replica
+                  cloud: 'AzurePublicCloud'
+                }
+                // KEDA reads the queue using the workload identity in workloadIdentity=
+                // mode. Container Apps maps this to the per-client UAMI bound to
+                // the app (which has Queue Data Contributor on its own queue).
+                identity: uamiId
+              }
             }
+
+            // Rule 2 - scale on transactional queue
             {
-              name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
-              value: appInsightsConnectionString
-            }
-            // ── UAMI ────────────────────────────────────────────────────────
-            {
-              name: 'clientId'
-              value: client.clientId
-            }
-            {
-              name: 'clientSecret'
-              value: client.clientSecret
-            }
-            // ── Storage ─────────────────────────────────────────────────────
-            {
-              name: 'STORAGE_ACCOUNT_NAME'
-              value: storageAccountName
-            }
-            {
-              name: 'BLOB_CONTAINER_NAME'
-              value: clientStorageDetails[i].blobContainerName
-            }
-            {
-              name: 'QUEUE_INBOX'
-              value: clientStorageDetails[i].inbox
-            }
-            {
-              name: 'QUEUE_OUTBOX'
-              value: clientStorageDetails[i].outbox
+              name: 'transactional-queue-depth'
+              custom: {
+                type: 'azure-queue'
+                metadata: {
+                  queueName: toLower('${namePrefix}-transactional-${client.name}-${environment_name}')
+                  accountName: storage_account_name
+                  queueLength: '1' // one message → one replica
+                  cloud: 'AzurePublicCloud'
+                }
+                // KEDA reads the queue using the workload identity in workloadIdentity=
+                // mode. Container Apps maps this to the per-client UAMI bound to
+                // the app (which has Queue Data Contributor on its own queue).
+                identity: uamiId
+              }
             }
           ]
         }
-      ]
-
-      scale: {
-        minReplicas: 1
-        maxReplicas: 1
       }
     }
   }
-}]
+]
 
-// ─── Outputs ──────────────────────────────────────────────────────────────────
+output clientContainerApps array = [
+  for (client, i) in clientDetails: {
+    client: client.name
+    name: toLower('${namePrefix}-${client.name}-${environment_name}')
+    fqdn: ContainerApp[i].properties.configuration.ingress.fqdn
+  }
+]
