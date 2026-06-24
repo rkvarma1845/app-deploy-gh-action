@@ -18,7 +18,7 @@ on:
         description: "Environment name for GH Secrets"
         required: true
         type: choice
-        options: [dev, qa, main]
+        options: [dev, qa, prod]
         default: "dev"
 
 # ─── Permissions for OIDC token ───────────────────────────────────────────────
@@ -26,14 +26,6 @@ permissions:
   id-token: write   # Required for OIDC
   contents: read
   pull-requests: write
-
-# ─── Global env vars ─────────────────────────────────────────────────────────
-env:
-  APP_NAME: nodejs-app
-  ACR_NAME: depappacr
-  RESOURCE_GROUP: nodejs-app-rg
-  LOCATION: centralindia
-  IMAGE_NAME: rengine
 
 # ─── Cancel in-flight runs on the same branch ────────────────────────────────
 concurrency:
@@ -47,12 +39,12 @@ jobs:
   # ═══════════════════════════════════════════════════════════════════════════
   detect-changes:
     name: Detect Changes
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     environment: ${{ github.event.inputs.environment }}
 
     outputs:
       infra_changed: ${{ steps.changes.outputs.infra }}
-      app_changed:   ${{ steps.changes.outputs.app }}
+      app_changed:   ${{ steps.changes.outputs.RuleEngine }}
 
     steps:
       - name: Checkout code
@@ -66,12 +58,9 @@ jobs:
         with:
           filters: |
             infra:
-              - 'bicep/**'
+              - 'infra/**'
             app:
-              - 'index.js'
-              - 'package.json'
-              - 'package-lock.json'
-              - 'Dockerfile'
+              - 'RuleEngine/**'
 
   # ═══════════════════════════════════════════════════════════════════════════
   # JOB 2 – Build & push Docker image to ACR
@@ -80,7 +69,7 @@ jobs:
   # ═══════════════════════════════════════════════════════════════════════════
   build-push:
     name: Build & Push
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     environment: ${{ github.event.inputs.environment }}
     needs: detect-changes
     outputs:
@@ -97,9 +86,9 @@ jobs:
       - name: Azure Login (OIDC)
         uses: azure/login@v3
         with:
-          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id:       ${{ vars.GH_AZURE_CLIENT_ID }}
+          tenant-id:       ${{ vars.GH_AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.GH_AZURE_SUBSCRIPTION_ID }}
 
       # ── Build image tag from short SHA ────────────────────────────────────
       - name: Set image tag
@@ -108,19 +97,19 @@ jobs:
 
       # ── Login to ACR via Azure CLI (uses the OIDC session) ────────────────
       - name: Login to ACR
-        run: az acr login --name "${{ env.ACR_NAME }}"
+        run: az acr login --name "${{ vars.acr_name }}"
 
       # ── Build Docker image ────────────────────────────────────────────────
       - name: Build Docker image
         run: |
           docker build \
-            -t "${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}" \
+            -t "${{ vars.acr_name }}.azurecr.io/${{ vars.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}" \
             .
 
       # ── Push both tagged and latest ───────────────────────────────────────
       - name: Push Docker image
         run: |
-          docker push "${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}"
+          docker push "${{ vars.acr_name }}.azurecr.io/${{ vars.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}"
 
   # ═══════════════════════════════════════════════════════════════════════════
   # JOB 3 – Deploy / update Azure infrastructure
@@ -134,7 +123,7 @@ jobs:
   # ═══════════════════════════════════════════════════════════════════════════
   infrastructure:
     name: Deploy Infrastructure
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     environment: ${{ github.event.inputs.environment }}
     needs: [detect-changes, build-push]
     if: |
@@ -154,22 +143,22 @@ jobs:
       - name: Azure Login (OIDC)
         uses: azure/login@v3
         with:
-          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id:       ${{ vars.GH_AZURE_CLIENT_ID }}
+          tenant-id:       ${{ vars.GH_AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.GH_AZURE_SUBSCRIPTION_ID }}
 
       - name: Resolve image tag
         id: image
         run: |
           if [ "${{ needs.build-push.result }}" == "success" ]; then
-            IMAGE="${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ needs.build-push.outputs.image_tag }}"
+            IMAGE="${{ vars.acr_name }}.azurecr.io/${{ vars.IMAGE_NAME }}:${{ needs.build-push.outputs.image_tag }}"
             echo "source=build-push" >> "$GITHUB_OUTPUT"
           else
             echo "build-push was skipped — fetching current image from first client container app..."
-            CLIENT=$(echo '${{ vars.CLIENTNAMES }}' | jq -r '.[0]')
+            CLIENT=$(echo '${{ vars.clientNames }}' | jq -r '.[0]')
             IMAGE=$(az containerapp show \
-              --name           "${{ env.APP_NAME }}-${CLIENT}-container" \
-              --resource-group "${{ env.RESOURCE_GROUP }}" \
+              --name           "${{ vars.namePrefix }}-${CLIENT}-${{ vars.environment_name }}" \
+              --resource-group "${{ vars.RESOURCE_GROUP }}" \
               --query          "properties.template.containers[0].image" \
               --output         tsv)
             echo "source=existing" >> "$GITHUB_OUTPUT"
@@ -180,32 +169,31 @@ jobs:
           echo "Resolved image: $IMAGE_NAME_TAG"
 
       # ── Deploy all Bicep modules, passing the resolved image ──────────────
-      - name: Deploy Bicep Infrastructure
+      - name: Deploy Bicep Infrastucture
         id: bicep
         run: |
           RESULT=$(az deployment group create \
-            --debug                           \
-            --verbose                         \
-            --subscription    "${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
-            --resource-group  "${{ env.RESOURCE_GROUP }}"            \
-            --template-file   bicep/main.bicep                       \
-            --parameters                                              \
-                appName="$APP_NAME"                                   \
-                acrName="$ACR_NAME"                                   \
-                containerImage="${{ steps.image.outputs.image }}"     \
-                clientNames="${{ vars.clientNames }}"     \
-                clientIds="${{ vars.clientIds }}"     \
-                clientSecrets="${{ vars.clientSecrets }}"     \
-                clientPrincipalIds="${{ vars.clientPrincipalIds }}"     \
+            --debug \
+            --verbose \
+            --subscription "${{ vars.GH_AZURE_SUBSCRIPTION_ID }}" \
+            --resource-group "${{ vars.RESOURCE_GROUP }}" \
+            --template-file infra/main.bicep \
+            --parameters  environment_name="${{ vars.environment_name }}" \
+                acr_name="${{ vars.acr_name }}" \
+                owner="${{ vars.owner }}" \
+                namePrefix="${{ vars.namePrefix }}" \
+                DockerImage="${{ steps.image.outputs.image }}" \
+                storage_account_name="${{ vars.storage_account_name }}" \
+                container_app_env_location="${{ vars.container_app_env_location }}" \
+                clientNames="${{ vars.clientNames }}" \
+                clientIds="${{ vars.clientIds }}" \
+                clientSecrets="${{ secrets.clientSecrets }}" \
+                clientPrincipalIds="${{ vars.clientPrincipalIds }}" \
+                ContainerAppCpu="${{ vars.ContainerAppCpu }}" \
+                ContainerAppMemory="${{ vars.ContainerAppMemory }}" \
+                ContainerAppMinReplicas="${{ vars.ContainerAppMinReplicas }}" \
+                ContainerAppMaxReplicas="${{ vars.ContainerAppMaxReplicas }}" \
             --output json)
-          
-          echo "client_container_apps=$(echo "$RESULT" | jq -c '.properties.outputs.clientContainerApps.value')" >> "$GITHUB_OUTPUT"
-
-
-      - name: Print Infrastructure Outputs
-        run: |
-          echo "Image source     : ${{ steps.image.outputs.source }}"
-          echo "Image deployed   : ${{ steps.image.outputs.image }}"
 
   # ═══════════════════════════════════════════════════════════════════════════
   # JOB 4 – Update Container App image
@@ -215,7 +203,7 @@ jobs:
   # ═══════════════════════════════════════════════════════════════════════════
   update-container-app:
     name: Update Container App
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     environment: ${{ github.event.inputs.environment }}
     needs: [detect-changes, build-push, infrastructure]
     if: |
@@ -232,19 +220,19 @@ jobs:
       - name: Azure Login (OIDC)
         uses: azure/login@v3
         with:
-          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id:       ${{ vars.GH_AZURE_CLIENT_ID }}
+          tenant-id:       ${{ vars.GH_AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.GH_AZURE_SUBSCRIPTION_ID }}
 
       - name: Update Container App images
         run: |
-          IMAGE="${{ env.ACR_NAME }}.azurecr.io/${{ env.APP_NAME }}:${{ needs.build-push.outputs.image_tag }}"
+          IMAGE="${{ vars.acr_name }}.azurecr.io/${{ vars.IMAGE_NAME }}:${{ needs.build-push.outputs.image_tag }}"
 
-          for CLIENT in $(echo '${{ vars.CLIENTNAMES }}' | jq -r '.[]'); do
-            echo "▶ Updating ${{ env.APP_NAME }}-${CLIENT}-container..."
+          for CLIENT in $(echo '${{ vars.clientNames }}' | jq -r '.[]'); do
+            echo "▶ Updating ${{ vars.namePrefix }}-${CLIENT}-${{ vars.environment_name }}..."
             az containerapp update \
-              --name           "${{ env.APP_NAME }}-${CLIENT}-container" \
-              --resource-group "${{ env.RESOURCE_GROUP }}" \
+              --name           "${{ vars.namePrefix }}-${CLIENT}-${{ vars.environment_name }}" \
+              --resource-group "${{ vars.RESOURCE_GROUP }}" \
               --image          "$IMAGE"
           done
 
@@ -253,12 +241,11 @@ jobs:
           echo ""
           for CLIENT in $(echo '${{ vars.clientNames }}' | jq -r '.[]'); do
             URL=$(az containerapp show \
-              --name           "${{ env.APP_NAME }}-${CLIENT}-container" \
-              --resource-group "${{ env.RESOURCE_GROUP }}" \
+              --name           "${{ vars.namePrefix }}-${CLIENT}-${{ vars.environment_name }}" \
+              --resource-group "${{ vars.RESOURCE_GROUP }}" \
               --query          "properties.configuration.ingress.fqdn" \
               --output tsv)
             echo "✅ ${CLIENT} — https://$URL"
-            echo "❤️  Health  — https://$URL/health"
           done
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -266,7 +253,7 @@ jobs:
   # ═══════════════════════════════════════════════════════════════════════════
   no-changes:
     name: No Changes Detected
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     needs: detect-changes
     if: |
       needs.detect-changes.outputs.infra_changed == 'false' &&
