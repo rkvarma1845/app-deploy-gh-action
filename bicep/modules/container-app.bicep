@@ -111,7 +111,6 @@ resource ContainerApp 'Microsoft.App/containerApps@2024-03-01' = [
                   queueName: toLower('${namePrefix}-batch-processing-${client.name}-${environment_name}')
                   accountName: storage_account_name
                   queueLength: '1' // one message → one replica
-                  cloud: 'AzurePublicCloud'
                 }
                 // KEDA reads the queue using the workload identity in workloadIdentity=
                 // mode. Container Apps maps this to the per-client UAMI bound to
@@ -129,7 +128,6 @@ resource ContainerApp 'Microsoft.App/containerApps@2024-03-01' = [
                   queueName: toLower('${namePrefix}-transactional-${client.name}-${environment_name}')
                   accountName: storage_account_name
                   queueLength: '1' // one message → one replica
-                  cloud: 'AzurePublicCloud'
                 }
                 // KEDA reads the queue using the workload identity in workloadIdentity=
                 // mode. Container Apps maps this to the per-client UAMI bound to
