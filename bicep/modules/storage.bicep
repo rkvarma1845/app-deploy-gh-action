@@ -7,8 +7,16 @@ param namePrefix string
 param environment_name string
 
 // Stroage account 
-resource storageAccount 'Microsoft.Storage/storageAccounts@2025-01-01' existing = {
+// resource storageAccount 'Microsoft.Storage/storageAccounts@2025-01-01' existing = {
+//   name: storage_account_name
+// }
+resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   name: storage_account_name
+  location: resourceGroup().location
+  sku: {
+    name: 'Standard_LRS'
+  }
+  kind: 'StorageV2'
 }
 
 // New Blob Container 
