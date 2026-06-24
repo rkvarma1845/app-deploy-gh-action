@@ -18,7 +18,7 @@ on:
         description: "Environment name for GH Secrets"
         required: true
         type: choice
-        options: [dev, qa, prod]
+        options: [dev, qa, main]
         default: "dev"
 
 # ─── Permissions for OIDC token ───────────────────────────────────────────────
@@ -58,7 +58,7 @@ jobs:
         with:
           filters: |
             infra:
-              - 'infra/**'
+              - 'bicep/**'
             app:
               - 'RuleEngine/**'
 
@@ -177,13 +177,13 @@ jobs:
             --verbose \
             --subscription "${{ vars.GH_AZURE_SUBSCRIPTION_ID }}" \
             --resource-group "${{ vars.RESOURCE_GROUP }}" \
-            --template-file infra/main.bicep \
+            --template-file bicep/main.bicep \
             --parameters  environment_name="${{ vars.environment_name }}" \
                 acr_name="${{ vars.acr_name }}" \
                 namePrefix="${{ vars.namePrefix }}" \
                 DockerImage="${{ steps.image.outputs.image }}" \
                 storage_account_name="${{ vars.storage_account_name }}" \
-                TenantId="${{ vars.TenantId }}" \
+                TenantId="${{ vars.GH_AZURE_TENANT_ID }}" \
                 container_app_env_location="${{ vars.container_app_env_location }}" \
                 clientNames="${{ vars.clientNames }}" \
                 clientIds="${{ vars.clientIds }}" \
