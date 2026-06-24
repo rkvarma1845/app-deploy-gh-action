@@ -24,7 +24,7 @@ param ContainerAppMemory string
 param ContainerAppMinReplicas int
 param ContainerAppMaxReplicas int
 
-resource ContainerApp 'Microsoft.App/containerApps@2024-03-01' = [
+resource ContainerApp 'Microsoft.App/containerApps@2024-08-02-preview' = [
   for (client, index) in clientDetails: {
     name: take(toLower('${namePrefix}-${client.name}-${environment_name}'), 32)
     location: location
