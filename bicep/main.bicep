@@ -1,21 +1,27 @@
-// ─── Main Bicep Orchestrator ──────────────────────────────────────────────────
-// Wires together: UAMI → ACR → Log Analytics → App Insights
-//                 → Container App Environment → Container App
-
-@description('Short application name used as a prefix for all resources.')
-param appName string = 'nodejs-app'
-
-@description('Azure region for all resources.')
 param location string = resourceGroup().location
+param environment_name string
+param acr_name string
+param owner string
 
-@description('Name of the Azure Container Registry (must be globally unique, alphanumeric).')
-param acrName string
+@description('Prefix name to create resources')
+param namePrefix string
 
-@description('Docker image tag to deploy. Leave empty on first infrastructure deploy.')
-param containerImage string
+// Log Analytics Name:
+param logAnalyticsWorkspaceName string = toLower('${namePrefix}-loganalytics-${environment_name}')
 
-@description('')
-param storageAccountName string = 'enginestoragedev'
+// App Insights Name:
+param applicationInsightsName string = toLower('${namePrefix}-appinsight-${environment_name}')
+
+// Container App Environment Name
+param conatainerAppEnvName string = '${namePrefix}-cae-${environment_name}'
+
+// UAMI Name 
+param rengineUamiName string = '${namePrefix}-uami-${environment_name}'
+
+param DockerImage string
+
+@description('Location for container app env and container app')
+param container_app_env_location string
 
 @description('Client Details')
 param clientNames array
@@ -30,12 +36,18 @@ var clientDetails array = [for i in range(0, length(clientNames)): {
   clientPrincipalId: clientPrincipalIds[i]
 }]
 
+// Resources
+param ContainerAppCpu int
+param ContainerAppMemory string
+param ContainerAppMinReplicas int
+param ContainerAppMaxReplicas int
 
 
 // ─── 1. User Assigned Managed Identity ───────────────────────────────────────
 module uami 'modules/uami.bicep' = {
-  name: 'deploy-uami'
+  name: 'deploy-rengineUami'
   params: {
+    rengineUamiName: rengineUamiName
     location: location
   }
 }
@@ -44,70 +56,77 @@ module uami 'modules/uami.bicep' = {
 module acr 'modules/acr-role.bicep' = {
   name: 'deploy-acr-roll'
   params: {
-    acrName: acrName
+    acrName: acr_name
     uamiPrincipalId: uami.outputs.uamiPrincipalId
   }
 }
 
 // ─── 3. Log Analytics Workspace ──────────────────────────────────────────────
-module logAnalytics 'modules/log-analytics.bicep' = {
+module logAnalytics 'modules/logAnalytics.bicep' = {
   name: 'deploy-log-analytics'
   params: {
-    appName: appName
+    logAnalyticsWorkspaceName: logAnalyticsWorkspaceName
     location: location
+    tags: tags
   }
 }
 
 // ─── 4. Application Insights ─────────────────────────────────────────────────
-module appInsights 'modules/app-insights.bicep' = {
+module appInsights 'modules/appInsights.bicep' = {
   name: 'deploy-app-insights'
   params: {
-    appName: appName
+    applicationInsightsName: applicationInsightsName
     location: location
     logAnalyticsWorkspaceId: logAnalytics.outputs.workspaceId
   }
 }
 
 // ─── 4. Azure Storage ─────────────────────────────────────────────────
-module azureStorage 'modules/storage.bicep' = {
-  name: 'storage'
+module AzureStorage 'modules/storage.bicep' = {
+  name: 'deploy-azure-storage'
+  dependsOn: [
+    appInsights
+  ]
   params: {
-    location: location
-    storageAccountName: storageAccountName
+    storage_account_name: storage_account_name
+    logAnalyticsWorkspaceId: logAnalytics.outputs.workspaceId
     clientNames: clientNames
-    clientDetails: clientDetails  // from uami.bicep output
+    clientDetails: clientDetails
+    uamiPrincipalId: uami.outputs.uamiPrincipalId
+    namePrefix: namePrefix
+    environment_name: environment_name
   }
 }
 
 // ─── 5. Container Apps Environment ───────────────────────────────────────────
-module containerEnv 'modules/container-env.bicep' = {
+module ContainerEnv 'modules/containerEnv.bicep' = {
   name: 'deploy-container-env'
   params: {
-    appName: appName
-    location: location
-    logAnalyticsCustomerId: logAnalytics.outputs.customerId
-    logAnalyticsPrimaryKey: logAnalytics.outputs.primarySharedKey
+    conatainerAppEnvName: conatainerAppEnvName
+    location: container_app_env_location
+    logAnalyticsWorkspaceCustomerId: logAnalytics.outputs.customerId
+    logAnalyticsWorkspaceSharedKey: logAnalytics.outputs.sharedKey
   }
 }
 
 // ─── 6. Container App ─────────────────────────────────────────────────────────
-module containerApp 'modules/container-app.bicep' = {
+module ContainerApp 'modules/containerApp.bicep' = {
   name: 'deploy-container-app'
   params: {
-    appName: appName
-    location: location
-    containerAppEnvId: containerEnv.outputs.envId
+    location: container_app_env_location
+    environment_name: environment_name
+    namePrefix: namePrefix
+    DockerImage: DockerImage
+    storage_account_name: storage_account_name
+    TenantId: TenantId
+    containerAppEnvironmentId: ContainerEnv.outputs.envId
+    AppInsightsInstrumentationKey: appInsights.outputs.instrumentationKey
     acrLoginServer: acr.outputs.loginServer
-    containerImage: containerImage
-    appInsightsConnectionString: appInsights.outputs.connectionString
     clientDetails: clientDetails
-    clientStorageDetails: azureStorage.outputs.clientStorageDetails
-    storageAccountName: storageAccountName
     uamiId: uami.outputs.uamiId
+    ContainerAppCpu: ContainerAppCpu
+    ContainerAppMemory: ContainerAppMemory
+    ContainerAppMinReplicas: ContainerAppMinReplicas
+    ContainerAppMaxReplicas: ContainerAppMaxReplicas
   }
 }
-
-// ─── Outputs ──────────────────────────────────────────────────────────────────
-output acrLoginServer string = acr.outputs.loginServer
-output appInsightsName string = appInsights.outputs.appInsightsName
-output logAnalyticsName string = logAnalytics.outputs.workspaceName
