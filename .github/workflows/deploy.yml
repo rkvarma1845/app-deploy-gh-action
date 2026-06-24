@@ -39,7 +39,7 @@ jobs:
   # ═══════════════════════════════════════════════════════════════════════════
   detect-changes:
     name: Detect Changes
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment }}
 
     outputs:
@@ -60,7 +60,7 @@ jobs:
             infra:
               - 'bicep/**'
             app:
-              - 'RuleEngine/**'
+              - 'index.js'
 
   # ═══════════════════════════════════════════════════════════════════════════
   # JOB 2 – Build & push Docker image to ACR
@@ -69,7 +69,7 @@ jobs:
   # ═══════════════════════════════════════════════════════════════════════════
   build-push:
     name: Build & Push
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment }}
     needs: detect-changes
     outputs:
@@ -123,7 +123,7 @@ jobs:
   # ═══════════════════════════════════════════════════════════════════════════
   infrastructure:
     name: Deploy Infrastructure
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment }}
     needs: [detect-changes, build-push]
     if: |
@@ -203,7 +203,7 @@ jobs:
   # ═══════════════════════════════════════════════════════════════════════════
   update-container-app:
     name: Update Container App
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment }}
     needs: [detect-changes, build-push, infrastructure]
     if: |
@@ -253,7 +253,7 @@ jobs:
   # ═══════════════════════════════════════════════════════════════════════════
   no-changes:
     name: No Changes Detected
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     needs: detect-changes
     if: |
       needs.detect-changes.outputs.infra_changed == 'false' &&
