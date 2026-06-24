@@ -34,7 +34,6 @@ resource ContainerApp 'Microsoft.App/containerApps@2024-08-02-preview' = [
     }
     properties: {
       environmentId: containerAppEnvironmentId
-      workloadProfileName: 'Consumption'
       configuration: {
         activeRevisionsMode: 'Single'
         ingress: {
