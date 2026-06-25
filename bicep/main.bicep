@@ -50,6 +50,7 @@ param ContainerAppMaxReplicas int
 // ─── 1. User Assigned Managed Identity ───────────────────────────────────────
 module uami 'modules/uami.bicep' = {
   name: 'deploy-rengineUami'
+  scope: resourceGroup('azure-devops')
   params: {
     rengineUamiName: rengineUamiName
     location: location
