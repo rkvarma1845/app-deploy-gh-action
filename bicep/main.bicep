@@ -50,7 +50,6 @@ param ContainerAppMaxReplicas int
 // ─── 1. User Assigned Managed Identity ───────────────────────────────────────
 module uami 'modules/uami.bicep' = {
   name: 'deploy-rengineUami'
-  scope: resourceGroup('azure-devops')
   params: {
     rengineUamiName: rengineUamiName
     location: location
@@ -60,6 +59,7 @@ module uami 'modules/uami.bicep' = {
 // ─── 2. Azure Container Registry ─────────────────────────────────────────────
 module acr 'modules/acr-role.bicep' = {
   name: 'deploy-acr-roll'
+  scope: resourceGroup('azure-devops')
   params: {
     acrName: acr_name
     uamiPrincipalId: uami.outputs.uamiPrincipalId
