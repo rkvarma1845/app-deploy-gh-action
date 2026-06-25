@@ -6,24 +6,35 @@ param uamiPrincipalId string
 param namePrefix string
 param environment_name string
 
-// Stroage account 
-// resource storageAccount 'Microsoft.Storage/storageAccounts@2025-01-01' existing = {
-//   name: storage_account_name
-// }
-resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
+resource storageAccount 'Microsoft.Storage/storageAccounts@2026-04-01' = {
   name: storage_account_name
   location: resourceGroup().location
   sku: {
     name: 'Standard_LRS'
   }
   kind: 'StorageV2'
+  properties: {
+    dualStackEndpointPreference: {
+      publishIpv6Endpoint: false
+    }
+    dnsEndpointType: 'Standard'
+    defaultToOAuthAuthentication: false
+    publicNetworkAccess: 'Enabled'
+    allowCrossTenantReplication: false
+    allowBlobPublicAccess: false
+    minimumTlsVersion: 'TLS1_2'
+    allowSharedKeyAccess: true
+  }
 }
 
 // New Blob Container 
-resource blobServices 'Microsoft.Storage/storageAccounts/blobServices@2025-01-01' = {
+resource blobServices 'Microsoft.Storage/storageAccounts/blobServices@2026-04-01' = {
   parent: storageAccount
   name: 'default'
   properties: {
+    staticWebsite: {
+      enabled: false
+    }
     containerDeleteRetentionPolicy: {
       enabled: true
       days: 7

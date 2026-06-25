@@ -33,7 +33,7 @@
 #   bash create_service_principals.sh dev "${CLIENTS[@]}"
 # -----------------------------------------------------------------------------
 
-PREFIX="engine"
+PREFIX="rengine"
 
 # First argument = environment
 ENV_NAME=$1

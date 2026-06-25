@@ -182,7 +182,6 @@ jobs:
                 acr_name="${{ vars.acr_name }}" \
                 namePrefix="${{ vars.namePrefix }}" \
                 DockerImage="${{ steps.image.outputs.image }}" \
-                storage_account_name="${{ vars.storage_account_name }}" \
                 TenantId="${{ vars.GH_AZURE_TENANT_ID }}" \
                 container_app_env_location="${{ vars.container_app_env_location }}" \
                 clientNames="${{ vars.clientNames }}" \

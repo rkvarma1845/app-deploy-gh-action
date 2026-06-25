@@ -40,7 +40,7 @@ set -euo pipefail
 # Usage:
 # bash delete_sp.sh dev client1 client2 client3
 
-PREFIX="engine"
+PREFIX="rengine"
 
 # First arg = environment
 ENV_NAME=$1

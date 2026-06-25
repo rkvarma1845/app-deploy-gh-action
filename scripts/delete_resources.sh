@@ -14,6 +14,11 @@
 #   1. Takes resource group name as argument
 #   2. Lists all resources except ACR (Microsoft.ContainerRegistry/registries)
 #   3. Deletes each resource one by one
+#
+# How to execute:
+#   chmod +x scripts/delete_resources.sh nodejs-app-rg
+#
+#   bash delete_resources.sh dev "${CLIENTS[@]}"
 # =============================================================================
 
 # ── Input ─────────────────────────────────────────────────────────────────────

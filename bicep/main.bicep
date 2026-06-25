@@ -17,9 +17,11 @@ param conatainerAppEnvName string = '${namePrefix}-cae-${environment_name}'
 // UAMI Name 
 param rengineUamiName string = '${namePrefix}-uami-${environment_name}'
 
+// Azure Storage Name
+param storage_account_name string =  '${namePrefix}-storage-${environment_name}'
+
 param DockerImage string
 
-param storage_account_name string
 param TenantId string
 
 @description('Location for container app env and container app')
