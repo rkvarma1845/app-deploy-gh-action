@@ -27,6 +27,17 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2026-04-01' = {
   }
 }
 
+// Azure Policy to deny storage accounts with shared key access enabled
+resource denySharedKeyPolicy 'Microsoft.Authorization/policyAssignments@2022-06-01' = {
+  name: 'deny-storage-shared-key'
+  scope: resourceGroup()
+  properties: {
+    policyDefinitionId: '/providers/Microsoft.Authorization/policyDefinitions/8c6a50c6-9ffd-4ae7-986f-5fa6111f9a54' // built-in policy
+    displayName: 'Deny Storage Account Shared Key Access'
+    enforcementMode: 'Default'
+  }
+}
+
 // New Blob Container 
 resource blobServices 'Microsoft.Storage/storageAccounts/blobServices@2026-04-01' = {
   parent: storageAccount
