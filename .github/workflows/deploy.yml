@@ -149,20 +149,15 @@ jobs:
 
       - name: Resolve image tag
         id: image
-        env:
-          CLIENT_NAMES: ${{ vars.clientNames }}
         run: |
           if [ "${{ needs.build-push.result }}" == "success" ]; then
             IMAGE="${{ vars.acr_name }}.azurecr.io/${{ vars.IMAGE_NAME }}:${{ needs.build-push.outputs.image_tag }}"
             echo "source=build-push" >> "$GITHUB_OUTPUT"
           else
             echo "build-push was skipped — fetching current image from first client container app..."
-
-            # Store in env var first to avoid interpolation issues
-            CLIENT=$(echo "$CLIENT_NAMES" | jq -r '.[0]')
-            # CLIENT_NAMES='${{ vars.clientNames }}'
-            # CLIENT=$(echo "$CLIENT_NAMES" | jq -r '.[0]')
-
+            echo '${{ vars.clientNames }}'
+            CLIENT=$(echo '${{ vars.clientNames }}' | sed "s/'/\"/g" | jq -r '.[0]')
+            # CLIENT=$(echo '${{ vars.clientNames }}' | jq -r '.[0]')
             IMAGE=$(az containerapp show \
               --name           "${{ vars.namePrefix }}-${CLIENT}-${{ vars.environment_name }}" \
               --resource-group "${{ vars.RESOURCE_GROUP }}" \
