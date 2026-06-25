@@ -23,7 +23,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2026-04-01' = {
     allowCrossTenantReplication: false
     allowBlobPublicAccess: false
     minimumTlsVersion: 'TLS1_2'
-    allowSharedKeyAccess: true
+    allowSharedKeyAccess: false
   }
 }
 
