@@ -234,7 +234,6 @@ jobs:
 
           IMAGE="${{ vars.acr_name }}.azurecr.io/${{ vars.IMAGE_NAME }}:${{ needs.build-push.outputs.image_tag }}"
 
-          # for CLIENT in $(echo '${{ vars.clientNames }}' | jq -r '.[]'); do
           for CLIENT in "${CLIENT_ARRAY[@]}"; do
             echo "▶ Updating ${{ vars.namePrefix }}-${CLIENT}-${{ vars.environment_name }}..."
             az containerapp update \
@@ -251,7 +250,7 @@ jobs:
           RAW=$(echo "$RAW" | tr -d "[]'")
           IFS=',' read -ra CLIENT_ARRAY <<< "$RAW"
 
-          ffor CLIENT in "${CLIENT_ARRAY[@]}"; do
+          for CLIENT in "${CLIENT_ARRAY[@]}"; do
             URL=$(az containerapp show \
               --name           "${{ vars.namePrefix }}-${CLIENT}-${{ vars.environment_name }}" \
               --resource-group "${{ vars.RESOURCE_GROUP }}" \
