@@ -155,7 +155,11 @@ jobs:
             echo "source=build-push" >> "$GITHUB_OUTPUT"
           else
             echo "build-push was skipped — fetching current image from first client container app..."
-            CLIENT=$(echo '${{ vars.clientNames }}' | jq -r '.[0]')
+
+            # Store in env var first to avoid interpolation issues
+            CLIENT_NAMES='${{ vars.clientNames }}'
+            CLIENT=$(echo "$CLIENT_NAMES" | jq -r '.[0]')
+
             IMAGE=$(az containerapp show \
               --name           "${{ vars.namePrefix }}-${CLIENT}-${{ vars.environment_name }}" \
               --resource-group "${{ vars.RESOURCE_GROUP }}" \
