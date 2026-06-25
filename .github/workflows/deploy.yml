@@ -98,7 +98,7 @@ jobs:
           SHA7="${GITHUB_SHA:0:7}"
           DATE="$(date -u +%Y%m%d)"
           case "$ENV" in
-            prod) TAG="v$(tr -d '[:space:]' < VERSION)" ;;
+            main) TAG="v$(tr -d '[:space:]' < VERSION)" ;;
             qa)   TAG="qa-${DATE}-${SHA7}" ;;
             dev)  TAG="dev-${DATE}-${SHA7}" ;;
             *)    TAG="manual-${DATE}-${SHA7}" ;;
