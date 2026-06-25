@@ -6,6 +6,7 @@ param uamiPrincipalId string
 param namePrefix string
 param environment_name string
 
+// Stroage account 
 resource storageAccount 'Microsoft.Storage/storageAccounts@2026-04-01' = {
   name: storage_account_name
   location: resourceGroup().location
@@ -24,6 +25,35 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2026-04-01' = {
     allowBlobPublicAccess: false
     minimumTlsVersion: 'TLS1_2'
     allowSharedKeyAccess: false
+    networkAcls: {
+      ipv6Rules: []
+      resourceAccessRules: [
+        {
+          tenantId: '1610ea52-a4e2-41bc-bd18-39e15f1ad63b'
+          resourceId: '/subscriptions/0e72310f-1fed-4144-804a-250579cfd2ea/providers/Microsoft.Security/datascanners/StorageDataScanner'
+        }
+      ]
+      bypass: 'AzureServices'
+      virtualNetworkRules: []
+      ipRules: []
+      defaultAction: 'Allow'
+    }
+    supportsHttpsTrafficOnly: true
+    encryption: {
+      requireInfrastructureEncryption: false
+      services: {
+        file: {
+          keyType: 'Account'
+          enabled: true
+        }
+        blob: {
+          keyType: 'Account'
+          enabled: true
+        }
+      }
+      keySource: 'Microsoft.Storage'
+    }
+    accessTier: 'Hot'
   }
 }
 
