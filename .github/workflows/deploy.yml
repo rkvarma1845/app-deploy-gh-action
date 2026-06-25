@@ -93,7 +93,18 @@ jobs:
       # ── Build image tag from short SHA ────────────────────────────────────
       - name: Set image tag
         id: tag
-        run: echo "image_tag=$(date +'%Y%m%d-%H%M')" >> "$GITHUB_OUTPUT"
+        run: |
+          ENV="${{ github.event.inputs.environment }}"
+          SHA7="${GITHUB_SHA:0:7}"
+          DATE="$(date -u +%Y%m%d)"
+          case "$ENV" in
+            prod) TAG="v$(tr -d '[:space:]' < VERSION)" ;;
+            qa)   TAG="qa-${DATE}-${SHA7}" ;;
+            dev)  TAG="dev-${DATE}-${SHA7}" ;;
+            *)    TAG="manual-${DATE}-${SHA7}" ;;
+          esac
+            
+          echo "image_tag=$TAG" >> "$GITHUB_OUTPUT"
 
       # ── Login to ACR via Azure CLI (uses the OIDC session) ────────────────
       - name: Login to ACR
