@@ -227,9 +227,15 @@ jobs:
 
       - name: Update Container App images
         run: |
+          RAW="${{ vars.clientNames }}"
+          # cleanup
+          RAW=$(echo "$RAW" | tr -d "[]'")
+          IFS=',' read -ra CLIENT_ARRAY <<< "$RAW"
+
           IMAGE="${{ vars.acr_name }}.azurecr.io/${{ vars.IMAGE_NAME }}:${{ needs.build-push.outputs.image_tag }}"
 
-          for CLIENT in $(echo '${{ vars.clientNames }}' | jq -r '.[]'); do
+          # for CLIENT in $(echo '${{ vars.clientNames }}' | jq -r '.[]'); do
+          for CLIENT in "${CLIENT_ARRAY[@]}"; do
             echo "▶ Updating ${{ vars.namePrefix }}-${CLIENT}-${{ vars.environment_name }}..."
             az containerapp update \
               --name           "${{ vars.namePrefix }}-${CLIENT}-${{ vars.environment_name }}" \
@@ -240,7 +246,12 @@ jobs:
       - name: Get App URLs
         run: |
           echo ""
-          for CLIENT in $(echo '${{ vars.clientNames }}' | jq -r '.[]'); do
+          RAW="${{ vars.clientNames }}"
+          # cleanup
+          RAW=$(echo "$RAW" | tr -d "[]'")
+          IFS=',' read -ra CLIENT_ARRAY <<< "$RAW"
+
+          ffor CLIENT in "${CLIENT_ARRAY[@]}"; do
             URL=$(az containerapp show \
               --name           "${{ vars.namePrefix }}-${CLIENT}-${{ vars.environment_name }}" \
               --resource-group "${{ vars.RESOURCE_GROUP }}" \
