@@ -4,6 +4,7 @@
 # ./scripts/setup-sp-oidc.sh \
 #   --app-name        sp-gh-action \
 #   --resource-group  nodejs-app-rg \
+#   --acr-resource-group  azure-devops \
 #   --gh-org          rkvarma1845 \
 #   --gh-repo         app-deploy-gh-action \
 #   --gh-env          main
