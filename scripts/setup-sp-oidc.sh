@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # chmod +x scripts/setup-sp-oidc.sh
-# ./scripts/setup-sp-oidc.sh \
+# ./scripts/setup-oidc.sh \
 #   --app-name        sp-gh-action \
 #   --resource-group  nodejs-app-rg \
 #   --gh-org          rkvarma1845 \
@@ -21,6 +21,7 @@ while [[ $# -gt 0 ]]; do
   case $1 in
     --app-name)        APP_NAME=$2;       shift 2 ;;
     --resource-group)  RESOURCE_GROUP=$2; shift 2 ;;
+    --acr-resource-group) ACR_RESOURCE_GROUP=$2; shift 2 ;;
     --gh-org)          GH_ORG=$2;         shift 2 ;;
     --gh-repo)         GH_REPO=$2;        shift 2 ;;
     --gh-env)          GH_ENV=$2;         shift 2 ;;
@@ -30,6 +31,7 @@ done
 
 [[ -z "${APP_NAME:-}"       ]] && { echo "Missing --app-name";       usage; }
 [[ -z "${RESOURCE_GROUP:-}" ]] && { echo "Missing --resource-group"; usage; }
+[[ -z "${ACR_RESOURCE_GROUP:-}" ]] && { echo "Missing --acr-resource-group"; usage; }
 [[ -z "${GH_ORG:-}"         ]] && { echo "Missing --gh-org";         usage; }
 [[ -z "${GH_REPO:-}"        ]] && { echo "Missing --gh-repo";        usage; }
 [[ -z "${GH_ENV:-}"         ]] && { echo "Missing --gh-env";         usage; }
@@ -85,7 +87,14 @@ echo ""
 echo "▶ Checking federated identity credential..."
 
 FED_NAME="${APP_NAME}-federation"
-EXISTING_FED=$(az ad app federated-credential list --id "$OBJECT_ID" --query "[?name=='${FED_NAME}'].name" -o tsv 2>/dev/null || true)
+# EXISTING_FED=$(az ad app federated-credential list --id "$OBJECT_ID" --query "[?name=='${FED_NAME}'].name" -o tsv 2>/dev/null || true)
+FED_SUBJECT="repo:${GH_ORG}/${GH_REPO}:environment:${GH_ENV}"
+
+EXISTING_FED=$(az ad app federated-credential list \
+  --id "$OBJECT_ID" \
+  --query "[?subject=='${FED_SUBJECT}'].subject" \
+  -o tsv 2>/dev/null || true)
+
 
 if [[ -n "$EXISTING_FED" ]]; then
   echo "  Already exists, skipping create."
@@ -122,6 +131,30 @@ for ROLE in "Contributor" "User Access Administrator"; do
       --role     "$ROLE"   \
       --scope    "$RG_SCOPE" -o none
     echo "  ✓ $ROLE"
+  fi
+done
+
+# ─── Role Assignments over ACR Resource Group ────────────────────────────────
+echo ""
+echo "▶ Checking role assignments for ACR resource group..."
+
+ACR_RG_SCOPE="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${ACR_RESOURCE_GROUP}"
+
+for ROLE in "Contributor" "User Access Administrator"; do
+  EXISTING_ROLE=$(az role assignment list \
+    --assignee "$APP_ID" \
+    --role "$ROLE" \
+    --scope "$ACR_RG_SCOPE" \
+    --query "[0].id" -o tsv 2>/dev/null || true)
+
+  if [[ -n "$EXISTING_ROLE" ]]; then
+    echo "  Already assigned on ACR RG, skipping: $ROLE"
+  else
+    az role assignment create \
+      --assignee "$APP_ID" \
+      --role "$ROLE" \
+      --scope "$ACR_RG_SCOPE" -o none
+    echo "  ✓ $ROLE on ACR RG"
   fi
 done
 
