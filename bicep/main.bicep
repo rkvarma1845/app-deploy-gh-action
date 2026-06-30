@@ -2,7 +2,7 @@ param location string = resourceGroup().location
 param environment_name string
 param acr_name string
 
-@description('Prefix name to create resources')
+@description('Prefix name to create resourcesss')
 param namePrefix string
 
 // Log Analytics Name:
