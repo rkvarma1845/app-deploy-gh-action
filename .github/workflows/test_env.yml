@@ -26,6 +26,7 @@ jobs:
         run: |
           echo "Executed branch : $BRANCH_NAME"
           echo "Environment     : $ENV_NAME"
+          echo "Environment     : ${{ vars.env }}"
 
       - name: Add to run summary
         run: |
