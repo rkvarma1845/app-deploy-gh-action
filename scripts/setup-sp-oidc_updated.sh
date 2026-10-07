@@ -1,31 +1,39 @@
 #!/usr/bin/env bash
 
-# chmod +x scripts/setup-sp-oidc.sh
+# chmod +x setup-sp-oidc.sh
 # ./scripts/setup-oidc.sh \
 #   --app-name        sp-gh-action \
-#   --resource-group  app-rg \
+#   --resource-group  nodejs-app-rg \
 #   --acr-resource-group  azure-devops \
 #   --gh-org          rkvarma1845 \
 #   --gh-repo         app-deploy-gh-action \
-#   --gh-env          main
-
+#   --gh-env          main \
+#   --github-org-id   "" \
+#   --github-repo-id  ""
 
 set -euo pipefail
 
 # ─── Input ────────────────────────────────────────────────────────────────────
 usage() {
-  echo "Usage: $0 --app-name <name> --resource-group <rg> --gh-org <org> --gh-repo <repo> --gh-env <env>"
+  echo "Usage: $0 --app-name <name> --resource-group <rg> --acr-resource-group <rg> \\"
+  echo "          --gh-org <org> --gh-repo <repo> --gh-env <env> \\"
+  echo "          [--github-org-id <id>] [--github-repo-id <id>]"
   exit 1
 }
 
+GITHUB_ORG_ID=""
+GITHUB_REPO_ID=""
+
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --app-name)        APP_NAME=$2;       shift 2 ;;
-    --resource-group)  RESOURCE_GROUP=$2; shift 2 ;;
-    --acr-resource-group) ACR_RESOURCE_GROUP=$2; shift 2 ;;
-    --gh-org)          GH_ORG=$2;         shift 2 ;;
-    --gh-repo)         GH_REPO=$2;        shift 2 ;;
-    --gh-env)          GH_ENV=$2;         shift 2 ;;
+    --app-name)            APP_NAME=$2;           shift 2 ;;
+    --resource-group)      RESOURCE_GROUP=$2;     shift 2 ;;
+    --acr-resource-group)  ACR_RESOURCE_GROUP=$2; shift 2 ;;
+    --gh-org)              GH_ORG=$2;             shift 2 ;;
+    --gh-repo)             GH_REPO=$2;            shift 2 ;;
+    --gh-env)              GH_ENV=$2;             shift 2 ;;
+    --github-org-id)       GITHUB_ORG_ID=$2;      shift 2 ;;
+    --github-repo-id)      GITHUB_REPO_ID=$2;     shift 2 ;;
     *) echo "Unknown argument: $1"; usage ;;
   esac
 done
@@ -87,33 +95,88 @@ echo "  SP Object ID : $SP_OBJECT_ID"
 echo ""
 echo "▶ Checking federated identity credential..."
 
-# Get org ID and repo ID from GitHub (gh works for private repos)
-GH_JSON=$(gh api "repos/${GH_ORG}/${GH_REPO}" 2>/dev/null \
-  || curl -fsS "https://api.github.com/repos/${GH_ORG}/${GH_REPO}")
-GH_ORG_ID=$(echo "$GH_JSON" | jq -r '.owner.id')
-GH_REPO_ID=$(echo "$GH_JSON" | jq -r '.id')
+ISSUER="https://token.actions.githubusercontent.com"
+AUDIENCE="api://AzureADTokenExchange"
+REPO_FULL="${GH_ORG}/${GH_REPO}"
 
-FED_NAME="${APP_NAME}-federation-id"
-FED_SUBJECT="repo:${GH_ORG}@${GH_ORG_ID}/${GH_REPO}@${GH_REPO_ID}:environment:${GH_ENV}"
+# Helper: idempotently create a single federated identity credential by name.
+# Skips creation if a FIC with the same name already exists.
+add_federated_credential() {
+  local name="$1"
+  local subject="$2"
+  local issuer="$3"
+  local audience="$4"
 
-EXISTING_FED=$(az ad app federated-credential list \
-  --id "$OBJECT_ID" \
-  --query "[?subject=='${FED_SUBJECT}'].subject" \
-  -o tsv 2>/dev/null || true)
-
-if [[ -n "$EXISTING_FED" ]]; then
-  echo "  Already exists, skipping create."
-else
-  az ad app federated-credential create \
+  local existing
+  existing=$(az ad app federated-credential list \
     --id "$OBJECT_ID" \
-    --parameters "{
-      \"name\": \"${FED_NAME}\",
-      \"issuer\": \"https://token.actions.githubusercontent.com\",
-      \"subject\": \"${FED_SUBJECT}\",
-      \"audiences\": [\"api://AzureADTokenExchange\"]
-    }" -o none
-  echo "  Created: ${FED_SUBJECT}"
+    --query "[?name=='${name}'].name" \
+    -o tsv 2>/dev/null || true)
+
+  if [[ -n "$existing" ]]; then
+    echo "  Already exists, skipping: ${name}"
+  else
+    az ad app federated-credential create \
+      --id "$OBJECT_ID" \
+      --parameters "{
+        \"name\": \"${name}\",
+        \"issuer\": \"${issuer}\",
+        \"subject\": \"${subject}\",
+        \"audiences\": [\"${audience}\"]
+      }" -o none
+    echo "  ✓ Created: ${name} (subject: ${subject})"
+  fi
+}
+
+# Resolve GitHub org/repo numeric IDs, needed for the immutable-subject FIC
+# now required by orgs that have "immutable identifier claims" enabled
+# (otherwise OIDC login fails with AADSTS700213).
+if [[ -z "$GITHUB_ORG_ID" || -z "$GITHUB_REPO_ID" ]]; then
+  if command -v curl >/dev/null 2>&1; then
+    echo "  Fetching org/repo IDs from GitHub API: https://api.github.com/repos/${REPO_FULL}"
+    _gh_api=$(curl -sS -H "Accept: application/vnd.github+json" \
+      "https://api.github.com/repos/${REPO_FULL}" 2>/dev/null || true)
+    if [[ -n "$_gh_api" ]]; then
+      [[ -z "$GITHUB_ORG_ID"  ]] && GITHUB_ORG_ID=$(echo  "$_gh_api" | jq -r '.owner.id // empty' 2>/dev/null || true)
+      [[ -z "$GITHUB_REPO_ID" ]] && GITHUB_REPO_ID=$(echo "$_gh_api" | jq -r '.id // empty'       2>/dev/null || true)
+    fi
+  fi
 fi
+
+if [[ -n "$GITHUB_ORG_ID" && -n "$GITHUB_REPO_ID" ]]; then
+  REPO_FULL_IMMUT="${GH_ORG}@${GITHUB_ORG_ID}/${GH_REPO}@${GITHUB_REPO_ID}"
+  echo "  GitHub IDs: org=${GITHUB_ORG_ID}, repo=${GITHUB_REPO_ID}"
+  echo "  Immutable subject prefix: ${REPO_FULL_IMMUT}"
+else
+  REPO_FULL_IMMUT=""
+  echo "  WARNING: could not resolve GitHub org/repo IDs (private repo? no curl/jq? no network?)." >&2
+  echo "  WARNING: ID-suffixed FICs will NOT be created. If your org has immutable-identifier"      >&2
+  echo "  WARNING: claims enabled (default now), workflow OIDC login WILL fail with AADSTS700213."  >&2
+  echo "  WARNING: Look up IDs at https://api.github.com/repos/${REPO_FULL} and re-run with"        >&2
+  echo "  WARNING:   --github-org-id <N> --github-repo-id <N>"                                      >&2
+fi
+
+# Helper: create BOTH name-based and (if we have IDs) ID-suffixed FIC
+# for a single (subject-suffix, cred-suffix) pair. Idempotent — the
+# inner add_federated_credential skips FICs that already exist by name.
+add_github_fic_pair() {
+  local cred_suffix="$1"   # e.g. "env-main" or "branch-master"
+  local subject_tail="$2"  # e.g. "environment:main" or "ref:refs/heads/master"
+
+  add_federated_credential \
+    "github-${GH_ORG}-${GH_REPO}-${cred_suffix}" \
+    "repo:${REPO_FULL}:${subject_tail}" \
+    "$ISSUER" "$AUDIENCE"
+
+  if [[ -n "$REPO_FULL_IMMUT" ]]; then
+    add_federated_credential \
+      "github-${GH_ORG}-${GH_REPO}-${cred_suffix}-immut" \
+      "repo:${REPO_FULL_IMMUT}:${subject_tail}" \
+      "$ISSUER" "$AUDIENCE"
+  fi
+}
+
+add_github_fic_pair "env-${GH_ENV}" "environment:${GH_ENV}"
 
 # ─── Role Assignments over Resource Group ────────────────────────────────────
 echo ""
