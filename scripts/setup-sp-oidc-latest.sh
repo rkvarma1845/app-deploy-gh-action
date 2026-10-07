@@ -6,7 +6,9 @@
 #   --resource-group  app-rg \
 #   --acr-resource-group  azure-devops \
 #   --gh-org          rkvarma1845 \
+#   --gh-org-id       <github-org-id> \
 #   --gh-repo         app-deploy-gh-action \
+#   --gh-repo-id      <github-repo-id> \
 #   --gh-env          main
 
 
@@ -14,7 +16,7 @@ set -euo pipefail
 
 # ─── Input ────────────────────────────────────────────────────────────────────
 usage() {
-  echo "Usage: $0 --app-name <name> --resource-group <rg> --gh-org <org> --gh-repo <repo> --gh-env <env>"
+  echo "Usage: $0 --app-name <name> --resource-group <rg> --acr-resource-group <acr-rg> --gh-org <org> --gh-org-id <org-id> --gh-repo <repo> --gh-repo-id <repo-id> --gh-env <env>"
   exit 1
 }
 
@@ -24,7 +26,9 @@ while [[ $# -gt 0 ]]; do
     --resource-group)  RESOURCE_GROUP=$2; shift 2 ;;
     --acr-resource-group) ACR_RESOURCE_GROUP=$2; shift 2 ;;
     --gh-org)          GH_ORG=$2;         shift 2 ;;
+    --gh-org-id)       GH_ORG_ID=$2;      shift 2 ;;
     --gh-repo)         GH_REPO=$2;        shift 2 ;;
+    --gh-repo-id)      GH_REPO_ID=$2;     shift 2 ;;
     --gh-env)          GH_ENV=$2;         shift 2 ;;
     *) echo "Unknown argument: $1"; usage ;;
   esac
@@ -34,7 +38,9 @@ done
 [[ -z "${RESOURCE_GROUP:-}" ]] && { echo "Missing --resource-group"; usage; }
 [[ -z "${ACR_RESOURCE_GROUP:-}" ]] && { echo "Missing --acr-resource-group"; usage; }
 [[ -z "${GH_ORG:-}"         ]] && { echo "Missing --gh-org";         usage; }
+[[ -z "${GH_ORG_ID:-}"      ]] && { echo "Missing --gh-org-id";      usage; }
 [[ -z "${GH_REPO:-}"        ]] && { echo "Missing --gh-repo";        usage; }
+[[ -z "${GH_REPO_ID:-}"     ]] && { echo "Missing --gh-repo-id";     usage; }
 [[ -z "${GH_ENV:-}"         ]] && { echo "Missing --gh-env";         usage; }
 
 # ─── Resolve subscription ─────────────────────────────────────────────────────
@@ -86,12 +92,6 @@ echo "  SP Object ID : $SP_OBJECT_ID"
 # ─── Federated Identity Credential ───────────────────────────────────────────
 echo ""
 echo "▶ Checking federated identity credential..."
-
-# Get org ID and repo ID from GitHub (gh works for private repos)
-GH_JSON=$(gh api "repos/${GH_ORG}/${GH_REPO}" 2>/dev/null \
-  || curl -fsS "https://api.github.com/repos/${GH_ORG}/${GH_REPO}")
-GH_ORG_ID=$(echo "$GH_JSON" | jq -r '.owner.id')
-GH_REPO_ID=$(echo "$GH_JSON" | jq -r '.id')
 
 FED_NAME="${APP_NAME}-federation-id"
 FED_SUBJECT="repo:${GH_ORG}@${GH_ORG_ID}/${GH_REPO}@${GH_REPO_ID}:environment:${GH_ENV}"
